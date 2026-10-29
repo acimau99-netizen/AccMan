@@ -325,4 +325,43 @@ MODE LITE: `Docs Impact` hanya merujuk `BLUEPRINT` / `TASKS`; `Test Case` meruju
 * **Test Case:** `pwa-offline.test::android_pwa_tutorial_and_assets`, `pwa-offline.test::manifest_and_sw_integrity`
 * **Metode Verifikasi:** Vitest test runner + `tsc --noEmit` + `npm run build`; tempel bukti.
 
+---
+
+### TASK-REV-07: Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi Elemen ZLCE
+* **Fase:** FASE REVISI (Pembersihan Produksi)
+* **Deskripsi:** Membersihkan seluruh antarmuka aplikasi AI Studio dari elemen internal ZLCE, tab generator recovery, matriks backlog task, dan kode task development (TASK-xxx) agar menjadi aplikasi PWA yang bersih, elegan, dan siap pakai langsung oleh pengguna akhir.
+* **Dependensi:** `TASK-REV-06`
+* **File:** `src/App.tsx`
+* **Docs Terkait (Tier 1):** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Docs Impact:** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Acceptance Criteria:**
+  1. Tab navigasi utama hanya memuat 6 modul inti ramah pengguna: Dashboard, Sesi Pemakaian, Riwayat & Catatan, Cadangan & Google Sheet, Akun & Akses, dan Layanan AI. Tab 'ZLCE Recovery' dan 'Matriks Task' dieliminasi dari navigasi.
+  2. Label nama pada bilah navigasi bersih tanpa sufiks teknis `(TASK-xxx)`.
+  3. Subtitle header dan lencana status diperbarui dari istilah internal ZLCE menjadi teks pengguna ("Multi-Akun AI & Reset Timer • IndexedDB Offline", badge "PWA Siap Pakai").
+  4. Banner hero pada seluruh tab dibersihkan dari label kode task teknis dan disesuaikan menjadi highlight fungsional modul.
+  5. Footer aplikasi dibersihkan dari terminologi governance ZLCE menjadi teks hak cipta/informasi penyimpanan lokal IndexedDB.
+  6. Seluruh 70 unit test (16 test files) tetap lulus tanpa regresi dan kompilasi produksi sukses (exit 0).
+* **Test Case:** `tests/dashboard.test.ts`, `tests/smoke.test.ts`, `tests/pwa-offline.test.ts`
+* **Metode Verifikasi:** Vitest test runner (70 tests pass) + `compile_applet` / `npm run build` exit 0; tempel bukti.
+
+---
+
+### TASK-REV-08: Integrasi Google Sheets API Langsung via OAuth & Drive Picker
+* **Fase:** FASE REVISI (Integrasi Workspace Mandiri)
+* **Deskripsi:** Mengintegrasikan Google Sheets API v4 dan Google Drive API secara langsung di sisi klien menggunakan autentikasi OAuth mandiri (Firebase Auth GoogleAuthProvider dengan token access in-memory eksklusif). Menyediakan fitur pembuatan Spreadsheet otomatis 1-klik dengan 6 tab terstruktur, pemilihan berkas sheet dari Google Drive pengguna, serta sinkronisasi pencadangan dan pemulihan data IndexedDB tanpa bergantung pada Web App Apps Script pihak ketiga.
+* **Dependensi:** `TASK-REV-07`
+* **File:** `src/google/auth.ts`, `src/google/sheets-api.ts`, `src/App.tsx`, `tests/google-sheets.test.ts`
+* **Docs Terkait (Tier 1):** `BLUEPRINT.md` (bagian 4), `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Docs Impact:** `BLUEPRINT.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Acceptance Criteria:**
+  1. Integrasi OAuth Google Workspace di sisi klien menggunakan token access in-memory (tanpa penyimpanan token di localStorage/sessionStorage) dengan cakupan `spreadsheets` dan `drive.file`.
+  2. Fungsi `createGoogleSpreadsheet` membuat berkas spreadsheet baru di Google Drive pengguna dengan 6 tab (`metadata`, `services`, `persons`, `access`, `logs`, `handoff`) dan baris header tebal/gelap.
+  3. Fungsi `findUserSpreadsheets` mengambil daftar berkas Google Spreadsheet dari Google Drive pengguna untuk kemudahan pemilihan berkas cadangan.
+  4. Fungsi `backupDirectToGoogleSheets` dan `restoreDirectFromGoogleSheets` melakukan batchUpdate dan batchGet data secara langsung ke Google Sheets API v4.
+  5. Alur pemulihan (restore) menerapkan proteksi konfirmasi data remote vs lokal, penolakan sheet kosong jika data lokal terisi, dan snapshot pra-restore otomatis.
+  6. Seluruh pengujian di `tests/google-sheets.test.ts` (4/4) lulus (total 74/74 unit tests lulus di seluruh 17 test files), `tsc --noEmit` 0 error, dan `compile_applet` sukses.
+* **Test Case:** `google-sheets.test::workspace_scopes_include_sheets_and_drive`, `google-sheets.test::in_memory_token_management`, `google-sheets.test::createGoogleSpreadsheet_creates_formatted_sheets`, `google-sheets.test::backupDirectToGoogleSheets_roundtrip`
+* **Metode Verifikasi:** Vitest test runner (74 tests pass) + `compile_applet` exit 0; tempel bukti.
+
+
 

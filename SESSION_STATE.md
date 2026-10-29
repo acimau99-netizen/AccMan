@@ -17,11 +17,11 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 
 ## 1. STATUS AKTIF
 
-* **Timestamp Audit:** 2026-10-29T09:05:00-07:00
+* **Timestamp Audit:** 2026-10-29 jam: ?
 * **Cabang Git:** `main`
-* **Task Terakhir DONE:** `TASK-REV-06`
-* **Task Aktif:** -
-* **Status Task Aktif:** -
+* **Task Terakhir DONE:** `TASK-REV-08`
+* **Task Aktif:** `-`
+* **Status Task Aktif:** `PENDING`
 * **Task Berikutnya:** -
 
 ---
@@ -48,6 +48,8 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 | `TASK-REV-04` | Sinkronisasi Google Sheets Mandiri & 1-Click Table Generator | TASK-REV-03 | DONE | Code.gs v2.1 generate_default_tables, 6 tab terformat otomatis, pembersihan Sheet1 default, 8/8 sheet-probe tests pass | ya |
 | `TASK-REV-05` | Filter Cepat Status 'READY' pada Dashboard | TASK-007 | DONE | Toggle filter 'Semua Akun' vs 'Hanya READY' di kartu layanan, filter dinamis real-time, responsive UI | ya |
 | `TASK-REV-06` | Kesiapan PWA Android WebAPK, Ikon PNG & Tautan HTTPS Live | TASK-REV-02, TASK-012 | DONE | 10/10 pwa-offline.test pass (total 70/70 pass di 16 files), icon-192.png, icon-512.png, maskable-512, QR scan modal, TUTORIAL_INSTALL_PWA_ANDROID.md | ya |
+| `TASK-REV-07` | Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi ZLCE | TASK-REV-06 | DONE | 70/70 vitest pass (16 files), tsc 0 error, build exit 0; eliminasi tab ZLCE & task matrix, sanitasi nama tab, subtitle/footer bersih | ya |
+| `TASK-REV-08` | Integrasi Google Sheets API Langsung via OAuth & Drive Picker | TASK-REV-07 | DONE | 74/74 vitest pass (17 files), tsc 0 error, build exit 0; OAuth in-memory token, 1-click create sheet 6 tab, drive file picker, batchUpdate/batchGet sync direct | ya |
 
 Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: ya` tidak valid.
 
@@ -63,7 +65,7 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 * **Sudah Dilakukan:** -
 * **Langkah Berikutnya (persis):** -
 * **Perintah Verifikasi:** -
-* **Diperbarui:** 2026-10-29T09:05:00-07:00
+* **Diperbarui:** 2026-10-29 jam: ?
 
 ---
 
@@ -87,24 +89,27 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 | `TASK-REV-04` | Level M | Sinkronisasi Google Sheets Mandiri & 1-Click Table Generator | DONE (disetujui pengguna) |
 | `TASK-REV-05` | Level S | Filter Cepat Status Akun 'READY' pada Dashboard | DONE (disetujui pengguna) |
 | `TASK-REV-06` | Level M | Kesiapan PWA Android WebAPK, Ikon PNG & Tautan Live HTTPS | DONE (disetujui pengguna) |
+| `TASK-REV-07` | Level M | Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi Elemen ZLCE | DONE (disetujui pengguna) |
+| `TASK-REV-08` | Level M | Integrasi Google Sheets API Langsung via OAuth & Drive Picker | DONE (disetujui pengguna) |
 
 ---
 
 ## 6. CATATAN SERAH TERIMA (ditimpa; maks. ~10 baris)
 
-* [2026-10-29T09:05:00-07:00] Seluruh revisi TASK-REV-04, TASK-REV-05, dan TASK-REV-06 tuntas & terverifikasi penuh (70/70 tests pass di 16 files, build exit 0).
-* [2026-10-29T09:05:00-07:00] Tautan live HTTPS resmi disematkan pada seluruh panduan dan modal in-app:
-  - Produksi: `https://ais-pre-67vxjndwqva5pmnr234qt6-557789186714.asia-southeast1.run.app`
-  - Dev: `https://ais-dev-67vxjndwqva5pmnr234qt6-557789186714.asia-southeast1.run.app`
-* [2026-10-29T09:05:00-07:00] Fitur Pindai Kode QR dan tombol 1-ketuk "Salin Tautan" aktif di modal UI panduan Android.
-* [2026-10-29T09:05:00-07:00] Filter cepat status 'READY' aktif di dashboard dengan toggle ramah layar sentuh.
-* [2026-10-29T09:05:00-07:00] 1-Click Default Table Generator di tab Google Sheets siap memformat 6 tab sheet otomatis.
-* [2026-10-29T09:05:00-07:00] WAL dikosongkan. Sistem bersih, stabil, terdokumentasi lengkap, dan siap digunakan.
+* [2026-10-29 jam: ?] TASK-REV-07 & TASK-REV-08 tuntas penuh: PWA 100% siap pakai dengan integrasi Google Sheets langsung via OAuth resmi.
+* [2026-10-29 jam: ?] UI bersih tanpa tab ZLCE internal; modul navigasi rapi (Dashboard, Sesi, Riwayat, Cadangan & Google Sheet, Akun, Layanan).
+* [2026-10-29 jam: ?] Integrasi Google Sheets API v4 langsung aktif: login pop-up Google resmi, token access in-memory aman (tanpa storage).
+* [2026-10-29 jam: ?] Fitur Buat Spreadsheet 1-Klik otomatis membuat 6 tab terstruktur dan terformat rapi di Google Drive pengguna.
+* [2026-10-29 jam: ?] Penjelajah berkas Drive terpasang untuk memilih Spreadsheet cadangan secara instan.
+* [2026-10-29 jam: ?] Sinkronisasi cadangan & pemulihan langsung dengan proteksi snapshot pra-restore fail-closed.
+* [2026-10-29 jam: ?] Seluruh 74 unit test di 17 berkas test lulus 100% (vitest pass), tsc --noEmit 0 error, build & compile_applet exit 0.
 
 ---
 
 ## 7. LOG AUDIT (terbaru di atas; arsipkan entri lama ke `docs/archive/`)
 
+* [2026-10-29 jam: ?] TASK-REV-08 DONE. Integrasi Google Sheets API v4 langsung via OAuth & Google Drive file browser selesai. 74/74 unit tests lulus (17 files), tsc 0 error, compile_applet exit 0. WAL dikosongkan.
+* [2026-10-29 jam: ?] TASK-REV-07 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-07"). Antarmuka studio dibersihkan penuh dari elemen ZLCE. PWA siap pakai.
 * [2026-10-29T09:05:00-07:00] TASK-REV-06 DONE. Menambahkan tautan live HTTPS resmi, QR code generator preview, panduan in-app browser WebView di TUTORIAL_INSTALL_PWA_ANDROID.md dan PwaInstallGuideModal.tsx. 70/70 tests pass di 16 test files. Build sukses.
 * [2026-10-29T08:50:00-07:00] TASK-REV-05 DONE. Menambahkan filter cepat status 'READY' di tab Dashboard (App.tsx) dengan count real-time dan switch toggle interaktif.
 * [2026-10-29T08:30:00-07:00] TASK-REV-04 DONE. Implementasi 1-Click Generator Tabel Bawaan Google Sheets (Code.gs v2.1, sheet-probe.ts) tanpa ketergantungan Firebase, memformat 6 tab sheet dengan header gelap dan format teks (@).

@@ -10,7 +10,6 @@ import {
   Layers, 
   ChevronRight, 
   Database, 
-  RotateCcw, 
   UserPlus, 
   Users, 
   AlertCircle, 
@@ -41,9 +40,25 @@ import {
   Wifi,
   WifiOff,
   Smartphone,
-  Filter
+  Filter,
+  LogOut,
+  Cloud,
+  FolderOpen
 } from 'lucide-react';
-import { RecoveryGenerator } from './components/RecoveryGenerator';
+import type { User } from 'firebase/auth';
+import { 
+  initAuth, 
+  googleSignIn, 
+  googleSignOut, 
+  getAccessToken 
+} from './google/auth';
+import {
+  createGoogleSpreadsheet,
+  findUserSpreadsheets,
+  backupDirectToGoogleSheets,
+  restoreDirectFromGoogleSheets,
+  type SheetFileSummary,
+} from './google/sheets-api';
 import { 
   getAllPersons, 
   getAllServices, 
@@ -113,31 +128,16 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { PwaInstallGuideModal } from './components/PwaInstallGuideModal';
 import { Copy, Code, Check } from 'lucide-react';
 
-interface TaskItem {
-  id: string;
-  name: string;
-  phase: string;
-  status: 'PENDING' | 'READY' | 'IN_PROGRESS' | 'DONE';
-  desc: string;
-}
-
-const BACKLOG_TASKS: TaskItem[] = [
-  { id: 'TASK-001', name: 'Scaffold PWA & Verifikasi Dependensi', phase: 'FASE 0', status: 'DONE', desc: 'Manifest, Vitest, verifikasi versi dependensi via npm ls, base path GitHub Pages.' },
-  { id: 'TASK-002', name: 'Penyimpanan IndexedDB & Skema', phase: 'FASE 1', status: 'DONE', desc: 'Store Service, Person, Access, UsageLog, HandoffNote, Settings, constraint & migrasi.' },
-  { id: 'TASK-003', name: 'Logika Waktu Reset & Status Akses', phase: 'FASE 1', status: 'DONE', desc: 'Fungsi murni resetAt (Pacific Midnight, durasi, manual), transisi status & auto-ready.' },
-  { id: 'TASK-004', name: 'Layanan & Tautan + Builder URL', phase: 'FASE 1', status: 'DONE', desc: 'CRUD Service, URL authuser encoder, seed default (AI Studio, Claude, dsb).' },
-  { id: 'TASK-005', name: 'Akun Google & Akses per Layanan', phase: 'FASE 1', status: 'DONE', desc: 'CRUD Person (maks. 10) & Access dengan loginMethod dan loginName opsional.' },
-  { id: 'TASK-006', name: 'Sesi Pemakaian (Buka, Stop, Limit)', phase: 'FASE 2', status: 'DONE', desc: 'Pencatatan sesi buka URL, Stop (durasi tetap ready), Limit (set resetAt).' },
-  { id: 'TASK-007', name: 'Dashboard & Switch Cepat', phase: 'FASE 2', status: 'DONE', desc: 'Badge status real-time, countdown timer, hitungan auto-ready, rekomendasi switch <= 2 taps.' },
-  { id: 'TASK-008', name: 'Riwayat, Catatan Akun & Catatan Lanjutan', phase: 'FASE 2', status: 'DONE', desc: 'Event logs terurut waktu, catatan akun, catatan lanjutan bersama per layanan.' },
-  { id: 'TASK-009', name: 'Ekspor/Impor JSON Lokal', phase: 'FASE 3', status: 'DONE', desc: 'Backup & restore JSON lokal dengan validasi integritas skema (tanpa rahasia).' },
-  { id: 'TASK-010', name: 'Spike Apps Script (CORS & Alur)', phase: 'FASE 3', status: 'DONE', desc: 'Code.gs Google Apps Script & probe CORS/redirect untuk integrasi Sheet.' },
-  { id: 'TASK-011', name: 'Backup & Restore Google Sheet (Klien)', phase: 'FASE 3', status: 'DONE', desc: 'Sinkronisasi dua arah ke Google Sheet via secret key dan snapshot otomatis.' },
-  { id: 'TASK-012', name: 'Hardening PWA, Offline & Uji Akhir', phase: 'FASE 4', status: 'DONE', desc: 'Service worker offline caching, PWA install prompt, uji E2E di Android.' },
-];
-
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'history' | 'backup' | 'accounts' | 'services' | 'recovery' | 'tasks'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'history' | 'backup' | 'accounts' | 'services'>('dashboard');
+
+  // State Google Workspace Auth & Direct Google Sheets API
+  const [googleUser, setGoogleUser] = useState<User | null>(null);
+  const [isGoogleLoggingIn, setIsGoogleLoggingIn] = useState(false);
+  const [userSpreadsheets, setUserSpreadsheets] = useState<SheetFileSummary[]>([]);
+  const [isLoadingDriveFiles, setIsLoadingDriveFiles] = useState(false);
+  const [isCreatingDirectSheet, setIsCreatingDirectSheet] = useState(false);
+  const [isDirectSyncing, setIsDirectSyncing] = useState(false);
   
   // State Data IndexedDB
   const [persons, setPersons] = useState<Person[]>([]);
@@ -303,6 +303,27 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       unsubscribeInstall();
+    };
+  }, []);
+
+  // Listen to Google Workspace OAuth auth state
+  useEffect(() => {
+    const unsubscribeAuth = initAuth(
+      (user, token) => {
+        setGoogleUser(user);
+        if (token) {
+          findUserSpreadsheets(token)
+            .then((files) => setUserSpreadsheets(files))
+            .catch(() => {});
+        }
+      },
+      () => {
+        setGoogleUser(null);
+        setUserSpreadsheets([]);
+      }
+    );
+    return () => {
+      if (typeof unsubscribeAuth === 'function') unsubscribeAuth();
     };
   }, []);
 
@@ -500,6 +521,177 @@ export default function App() {
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // Google Workspace Direct Auth & Sheets API Actions
+  const handleGoogleSignInClick = async () => {
+    setIsGoogleLoggingIn(true);
+    setBackupNotice(null);
+    setBackupError(null);
+    try {
+      const res = await googleSignIn();
+      if (res) {
+        setGoogleUser(res.user);
+        setBackupNotice(`Berhasil masuk sebagai ${res.user.displayName || res.user.email}!`);
+        setIsLoadingDriveFiles(true);
+        try {
+          const files = await findUserSpreadsheets(res.accessToken);
+          setUserSpreadsheets(files);
+        } catch (e) {
+          console.warn('Gagal memuat berkas Drive:', e);
+        } finally {
+          setIsLoadingDriveFiles(false);
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setBackupError(`Gagal masuk dengan Google: ${err.message}`);
+      }
+    } finally {
+      setIsGoogleLoggingIn(false);
+    }
+  };
+
+  const handleGoogleSignOutClick = async () => {
+    try {
+      await googleSignOut();
+      setGoogleUser(null);
+      setUserSpreadsheets([]);
+      setBackupNotice('Berhasil keluar dari akun Google Workspace.');
+    } catch (err: unknown) {
+      if (err instanceof Error) setBackupError(err.message);
+    }
+  };
+
+  const handleCreateDirectSpreadsheetClick = async () => {
+    const token = await getAccessToken();
+    if (!token) {
+      setBackupError('Sesi login Google tidak ditemukan. Silakan klik "Sign in with Google" terlebih dahulu.');
+      return;
+    }
+    setIsCreatingDirectSheet(true);
+    setBackupNotice(null);
+    setBackupError(null);
+
+    try {
+      const created = await createGoogleSpreadsheet(token, 'AI Account Manager - Data Backup');
+      const updated: Settings = {
+        ...settings,
+        googleSpreadsheetId: created.spreadsheetId,
+        googleSpreadsheetUrl: created.spreadsheetUrl,
+        googleSpreadsheetTitle: created.title,
+        updatedAt: new Date().toISOString(),
+      };
+      await saveSettings(updated);
+      setAppSettings(updated);
+      setSheetSpreadsheetIdInput(created.spreadsheetId);
+
+      // Otomatis cadangkan data saat ini ke sheet baru
+      const backupResult = await backupDirectToGoogleSheets(token, created.spreadsheetId);
+      setBackupNotice(`Spreadsheet "${created.title}" berhasil dibuat di Google Drive dan ${backupResult.counts?.total || 0} entitas dicadangkan!`);
+      await loadAllData();
+
+      // Refresh list
+      const files = await findUserSpreadsheets(token);
+      setUserSpreadsheets(files);
+    } catch (err: unknown) {
+      if (err instanceof Error) setBackupError(err.message);
+    } finally {
+      setIsCreatingDirectSheet(false);
+    }
+  };
+
+  const handleSelectDriveSpreadsheet = async (file: SheetFileSummary) => {
+    try {
+      const updated: Settings = {
+        ...settings,
+        googleSpreadsheetId: file.id,
+        googleSpreadsheetUrl: file.webViewLink || `https://docs.google.com/spreadsheets/d/${file.id}/edit`,
+        googleSpreadsheetTitle: file.name,
+        updatedAt: new Date().toISOString(),
+      };
+      await saveSettings(updated);
+      setAppSettings(updated);
+      setSheetSpreadsheetIdInput(file.id);
+      setBackupNotice(`Spreadsheet "${file.name}" berhasil dipilih dan ditautkan.`);
+    } catch (err: unknown) {
+      if (err instanceof Error) setBackupError(err.message);
+    }
+  };
+
+  const handleDirectBackupClick = async () => {
+    const token = await getAccessToken();
+    if (!token) {
+      setBackupError('Silakan masuk dengan akun Google terlebih dahulu.');
+      return;
+    }
+    const targetSheetId = settings.googleSpreadsheetId || sheetSpreadsheetIdInput.trim();
+    if (!targetSheetId) {
+      setBackupError('Pilih atau buat spreadsheet terlebih dahulu.');
+      return;
+    }
+
+    setIsDirectSyncing(true);
+    setBackupNotice(null);
+    setBackupError(null);
+
+    try {
+      const res = await backupDirectToGoogleSheets(token, targetSheetId);
+      if (res.success) {
+        setBackupNotice(res.message);
+        const updated: Settings = {
+          ...settings,
+          lastGoogleSyncAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await saveSettings(updated);
+        setAppSettings(updated);
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) setBackupError(err.message);
+    } finally {
+      setIsDirectSyncing(false);
+    }
+  };
+
+  const handleDirectRestoreClick = async () => {
+    const token = await getAccessToken();
+    if (!token) {
+      setBackupError('Silakan masuk dengan akun Google terlebih dahulu.');
+      return;
+    }
+    const targetSheetId = settings.googleSpreadsheetId || sheetSpreadsheetIdInput.trim();
+    if (!targetSheetId) {
+      setBackupError('Pilih atau buat spreadsheet terlebih dahulu.');
+      return;
+    }
+
+    setBackupNotice(null);
+    setBackupError(null);
+
+    // Buka konfirmasi melalui modal
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Konfirmasi Pemulihan dari Google Sheets',
+      description: 'Pemulihan data akan menimpa seluruh akun, layanan, dan riwayat yang ada di aplikasi ini dengan data dari Google Sheets. Salinan pengaman lokal otomatis akan dibuat sebelum penimpaan.',
+      confirmLabel: 'Ya, Pulihkan Data Sekarang',
+      confirmVariant: 'danger',
+      action: async () => {
+        setIsDirectSyncing(true);
+        try {
+          const res = await restoreDirectFromGoogleSheets(token, targetSheetId);
+          if (res.success) {
+            setBackupNotice(res.message);
+            await loadAllData();
+          }
+        } catch (err: unknown) {
+          if (err instanceof Error) setBackupError(err.message);
+        } finally {
+          setIsDirectSyncing(false);
+          setConfirmModalConfig(null);
+        }
+      },
+    });
   };
 
   const handleSaveSettings = async () => {
@@ -844,9 +1036,9 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">AI Account Manager</h1>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-sky-950 text-sky-400 border border-sky-800 font-mono">PWA v0.5</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-sky-950 text-sky-400 border border-sky-800 font-mono">PWA v1.0</span>
               </div>
-              <p className="text-xs text-slate-400">ZLCE Lite • Task-Driven • IndexedDB Offline</p>
+              <p className="text-xs text-slate-400">Multi-Akun AI & Reset Timer • IndexedDB Offline</p>
             </div>
           </div>
 
@@ -881,7 +1073,7 @@ export default function App() {
 
             <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-800">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              TASK-001 s/d 012 DONE (100%)
+              PWA Siap Pakai
             </span>
 
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-slate-900 text-slate-300 border border-slate-800">
@@ -904,7 +1096,7 @@ export default function App() {
             }`}
           >
             <Zap className="w-4 h-4" />
-            Dashboard & Switch (TASK-007)
+            Dashboard
           </button>
 
           <button
@@ -916,7 +1108,7 @@ export default function App() {
             }`}
           >
             <Activity className="w-4 h-4" />
-            Sesi Pemakaian (TASK-006)
+            Sesi Pemakaian
           </button>
 
           <button
@@ -928,7 +1120,7 @@ export default function App() {
             }`}
           >
             <History className="w-4 h-4" />
-            Riwayat & Catatan (TASK-008)
+            Riwayat & Catatan
           </button>
 
           <button
@@ -940,7 +1132,7 @@ export default function App() {
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
-            Backup & Sheet (TASK-009/010/011)
+            Cadangan & Google Sheet
           </button>
 
           <button
@@ -952,7 +1144,7 @@ export default function App() {
             }`}
           >
             <Users className="w-4 h-4" />
-            Akun & Akses (TASK-005)
+            Akun & Akses
           </button>
 
           <button
@@ -964,30 +1156,7 @@ export default function App() {
             }`}
           >
             <Globe2 className="w-4 h-4" />
-            Layanan AI (TASK-004)
-          </button>
-
-          <button
-            onClick={() => setActiveTab('recovery')}
-            className={`py-3 font-medium border-b-2 flex items-center gap-2 transition-colors ${
-              activeTab === 'recovery'
-                ? 'border-amber-500 text-amber-400 font-semibold'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <RotateCcw className="w-4 h-4" />
-            ZLCE Recovery
-          </button>
-
-          <button
-            onClick={() => setActiveTab('tasks')}
-            className={`py-3 font-medium border-b-2 transition-colors ${
-              activeTab === 'tasks'
-                ? 'border-sky-500 text-sky-400 font-semibold'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Matriks Task (12)
+            Layanan AI
           </button>
         </div>
       </div>
@@ -1077,8 +1246,8 @@ export default function App() {
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-sky-950/40 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
               <div className="relative z-10 space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800 text-xs font-medium">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  TASK-007: Dashboard & Switch Cepat (Maks. 2 Ketukan)
+                  <Zap className="w-3.5 h-3.5" />
+                  Manajemen Sesi Cepat
                 </div>
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-white">Dashboard Layanan & Rekomendasi Switch</h2>
@@ -1361,9 +1530,9 @@ export default function App() {
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
               <div className="relative z-10 space-y-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800 text-xs font-medium">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  TASK-006: 5/5 Acceptance Criteria Terverifikasi
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-950/80 text-sky-400 border border-sky-800 text-xs font-medium">
+                  <Activity className="w-3.5 h-3.5" />
+                  Pelacakan Waktu Nyata
                 </div>
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-white">Sesi Pemakaian AI: Buka, Stop, & Limit</h2>
@@ -1394,8 +1563,8 @@ export default function App() {
                   <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex items-start gap-3">
                     <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-xs text-slate-400">Total Unit Tests Lolos</p>
-                      <p className="text-sm font-semibold text-slate-100">40/40 Tests Passed (Vitest)</p>
+                      <p className="text-xs text-slate-400">Total Layanan Terhubung</p>
+                      <p className="text-sm font-semibold text-slate-100">{services.length} Layanan AI Aktif</p>
                     </div>
                   </div>
                 </div>
@@ -1713,14 +1882,14 @@ export default function App() {
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
               <div className="relative z-10 space-y-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800 text-xs font-medium">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  TASK-008: Riwayat, Catatan Akun & Catatan Lanjutan Tim
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/80 text-indigo-400 border border-indigo-800 text-xs font-medium">
+                  <History className="w-3.5 h-3.5" />
+                  Audit Trail & Kolaborasi Tim
                 </div>
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-white">Audit Trail & Catatan Kolaborasi Tim</h2>
                   <p className="text-sm text-slate-300 mt-1 max-w-2xl">
-                    Jejak riwayat aktivitas terurut kronologis (opened, stop, limit, auto-ready, note), Catatan Bebas per akun Google (BR-09), serta Catatan Lanjutan bersama per layanan (BR-15) yang mencantumkan nama anggota tim yang sedang bertugas.
+                    Jejak riwayat aktivitas terurut kronologis (opened, stop, limit, auto-ready, note), Catatan Bebas per akun Google, serta Catatan Lanjutan bersama per layanan yang mencantumkan nama anggota tim yang sedang bertugas.
                   </p>
                 </div>
               </div>
@@ -1943,7 +2112,193 @@ export default function App() {
               </div>
             )}
 
-            {/* SEKSI 1: GOOGLE SHEETS VIA APPS SCRIPT WEB APP (PRIMARY & OPTIMIZED) */}
+            {/* SEKSI UTAMA: GOOGLE WORKSPACE OAUTH & DIRECT GOOGLE SHEETS API (OFFICIAL 1-CLICK SYNC) */}
+            <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950/40 border border-sky-800/80 rounded-2xl p-6 space-y-5 shadow-2xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-sky-950 border border-sky-800 flex items-center justify-center text-sky-400 shadow-lg shadow-sky-600/10 shrink-0">
+                    <Cloud className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-white">Google Workspace Direct Sheets API</h3>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-800 font-semibold">
+                        OAuth 2.0 Resmi
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      Sinkronisasi dua arah instan ke Google Drive & Google Sheets tanpa perlu menyalin skrip Code.gs
+                    </p>
+                  </div>
+                </div>
+
+                {googleUser && (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+                      {googleUser.photoURL ? (
+                        <img src={googleUser.photoURL} alt="Avatar" className="w-6 h-6 rounded-full border border-sky-500" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-sky-800 flex items-center justify-center text-white text-[10px] font-bold">
+                          {googleUser.displayName?.charAt(0) || 'G'}
+                        </div>
+                      )}
+                      <div className="text-left">
+                        <p className="text-white font-semibold leading-none">{googleUser.displayName || 'Google User'}</p>
+                        <p className="text-[10px] font-mono text-slate-400 leading-tight">{googleUser.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleGoogleSignOutClick}
+                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                      title="Keluar dari akun Google"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!googleUser ? (
+                <div className="p-6 bg-slate-950/70 border border-slate-800/80 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-5 text-center sm:text-left">
+                  <div className="space-y-1 max-w-lg">
+                    <h4 className="text-sm font-bold text-white flex items-center justify-center sm:justify-start gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                      Hubungkan Langsung ke Akun Google Anda
+                    </h4>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Masuk dengan Akun Google Anda untuk otomatis membuat spreadsheet cadangan di Google Drive, mencadangkan seluruh data multi-akun dengan 1 klik, serta memulihkan data kapan saja.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignInClick}
+                    disabled={isGoogleLoggingIn}
+                    className="gsi-material-button shrink-0 shadow-lg shadow-sky-600/20"
+                  >
+                    <div className="gsi-material-button-state"></div>
+                    <div className="gsi-material-button-content-wrapper">
+                      <div className="gsi-material-button-icon">
+                        <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style={{ display: 'block' }}>
+                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                          <path fill="none" d="M0 0h48v48H0z"></path>
+                        </svg>
+                      </div>
+                      <span className="gsi-material-button-contents">
+                        {isGoogleLoggingIn ? 'Menghubungkan...' : 'Sign in with Google'}
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Active Spreadsheet Connected Banner */}
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span className="text-slate-400">Spreadsheet Terhubung:</span>
+                        <strong className="text-white font-semibold">
+                          {settings.googleSpreadsheetTitle || 'Belum Ada Spreadsheet Dipilih'}
+                        </strong>
+                      </div>
+                      {settings.googleSpreadsheetId && (
+                        <p className="text-[11px] font-mono text-slate-500">ID: {settings.googleSpreadsheetId}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {settings.googleSpreadsheetUrl && (
+                        <a
+                          href={settings.googleSpreadsheetUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Buka Google Sheets</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons for Direct Sync */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button
+                      onClick={handleCreateDirectSpreadsheetClick}
+                      disabled={isCreatingDirectSheet}
+                      className="p-3.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-sky-600/20 transition cursor-pointer"
+                    >
+                      <Sparkles className={`w-4 h-4 ${isCreatingDirectSheet ? 'animate-spin' : ''}`} />
+                      <span>{isCreatingDirectSheet ? 'Membuat Spreadsheet...' : '1-Click Buat Spreadsheet Baru'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleDirectBackupClick}
+                      disabled={isDirectSyncing || (!settings.googleSpreadsheetId && !sheetSpreadsheetIdInput)}
+                      className="p-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition cursor-pointer"
+                    >
+                      <Upload className={`w-4 h-4 ${isDirectSyncing ? 'animate-bounce' : ''}`} />
+                      <span>{isDirectSyncing ? 'Menyinkronkan...' : 'Cadangkan ke Google Sheets'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleDirectRestoreClick}
+                      disabled={isDirectSyncing || (!settings.googleSpreadsheetId && !sheetSpreadsheetIdInput)}
+                      className="p-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-rose-300 border border-rose-900/40 font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <Download className={`w-4 h-4 ${isDirectSyncing ? 'animate-bounce' : ''}`} />
+                      <span>Pulihkan dari Google Sheets</span>
+                    </button>
+                  </div>
+
+                  {/* Drive Spreadsheets Browser */}
+                  {userSpreadsheets.length > 0 && (
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                          <FolderOpen className="w-4 h-4 text-amber-400" />
+                          Spreadsheet di Google Drive Anda ({userSpreadsheets.length}):
+                        </span>
+                        <span className="text-[10px] text-slate-500">Pilih berkas untuk ditautkan</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                        {userSpreadsheets.map((file) => {
+                          const isSelected = settings.googleSpreadsheetId === file.id;
+                          return (
+                            <div
+                              key={file.id}
+                              onClick={() => handleSelectDriveSpreadsheet(file)}
+                              className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between gap-2 transition ${
+                                isSelected
+                                  ? 'bg-sky-950/80 border-sky-600 text-sky-200 font-semibold'
+                                  : 'bg-slate-900 hover:bg-slate-800/80 border-slate-800 text-slate-300'
+                              }`}
+                            >
+                              <div className="truncate min-w-0">
+                                <p className="truncate text-xs">{file.name}</p>
+                                <p className="text-[10px] font-mono text-slate-500 truncate">{file.id}</p>
+                              </div>
+                              {isSelected ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-sky-600 text-white shrink-0">Aktif</span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 hover:text-white shrink-0">Pilih</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* SEKSI 2: GOOGLE SHEETS VIA APPS SCRIPT WEB APP (ALTERNATIVE SCRIPT INTEGRATION) */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
                 <div className="flex items-center gap-3">
@@ -1952,9 +2307,9 @@ export default function App() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-white">Sinkronisasi Google Sheets (Apps Script Web App)</h3>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold">
-                        Tanpa Firebase
+                      <h3 className="text-base font-bold text-white">Metode Alternatif: Google Apps Script Web App</h3>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
+                        Kunci Rahasia & Endpoint
                       </span>
                     </div>
                     <p className="text-xs text-slate-400">
@@ -2278,13 +2633,13 @@ export default function App() {
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
               <div className="relative z-10 space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800 text-xs font-medium">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  TASK-005: Akun Google & Akses Layanan AI DONE
+                  <Users className="w-3.5 h-3.5" />
+                  Manajemen Multi-Akun
                 </div>
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-white">Akun Google & Akses Layanan AI (Maks. 10 Akun)</h2>
                   <p className="text-sm text-slate-300 mt-1 max-w-2xl">
-                    Kelola hingga 10 akun Google (BR-07, BR-14) dengan keunikan nama pemilik & email. Hubungkan akun ke layanan dengan metode login Google atau kredensial akun sendiri.
+                    Kelola hingga 10 akun Google dengan keunikan nama pemilik & email. Hubungkan akun ke layanan dengan metode login Google atau kredensial akun sendiri.
                   </p>
                 </div>
               </div>
@@ -2473,7 +2828,7 @@ export default function App() {
                     </div>
 
                     <div>
-                      <label className="text-slate-400 block mb-1">Metode Login (ASM-09):</label>
+                      <label className="text-slate-400 block mb-1">Metode Login:</label>
                       <select
                         value={targetLoginMethod}
                         onChange={(e) => setTargetLoginMethod(e.target.value as LoginMethod)}
@@ -2526,7 +2881,7 @@ export default function App() {
                     Konfirmasi Hapus Akun
                   </h4>
                   <p className="text-xs text-slate-300">
-                    Apakah Anda yakin ingin menghapus akun <strong>{personToDelete.ownerName}</strong>? Seluruh akses ke layanan dan riwayat sesi terkait akun ini akan dihapus secara kaskade (BR-07, BR-08).
+                    Apakah Anda yakin ingin menghapus akun <strong>{personToDelete.ownerName}</strong>? Seluruh akses ke layanan dan riwayat sesi terkait akun ini akan dihapus secara kaskade.
                   </p>
                   <div className="flex justify-end gap-2 pt-2">
                     <button
@@ -2554,8 +2909,8 @@ export default function App() {
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
               <div className="relative z-10 space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800 text-xs font-medium">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  TASK-004: Layanan AI & Builder URL authuser DONE
+                  <Globe2 className="w-3.5 h-3.5" />
+                  Konfigurasi Layanan AI
                 </div>
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-white">Layanan AI & Builder URL authuser</h2>
@@ -2716,7 +3071,7 @@ export default function App() {
                     Konfirmasi Hapus Layanan
                   </h4>
                   <p className="text-xs text-slate-300">
-                    Apakah Anda yakin ingin menghapus layanan <strong>{serviceToDelete.name}</strong>? Seluruh data akses, riwayat pemakaian, dan catatan lanjutan terkait layanan ini akan ikut terhapus secara kaskade (BR-08).
+                    Apakah Anda yakin ingin menghapus layanan <strong>{serviceToDelete.name}</strong>? Seluruh data akses, riwayat pemakaian, dan catatan lanjutan terkait layanan ini akan ikut terhapus secara kaskade.
                   </p>
                   <div className="flex justify-end gap-2 pt-2">
                     <button
@@ -2743,52 +3098,6 @@ export default function App() {
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* TAB 7: ZLCE RECOVERY GENERATOR */}
-        {activeTab === 'recovery' && <RecoveryGenerator />}
-
-        {/* TAB 8: MATRIKS TASK (12) */}
-        {activeTab === 'tasks' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-white">Backlog Task ZLCE (12 Task)</h2>
-                <p className="text-xs text-slate-400">Total 12 task terstruktur sesuai BLUEPRINT & TASKS.md</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {BACKLOG_TASKS.map((task) => (
-                <div
-                  key={task.id}
-                  className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-700 transition"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-sky-400">
-                        {task.id}
-                      </span>
-                      <span className="text-xs text-slate-400 font-medium">({task.phase})</span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                          task.status === 'DONE'
-                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                            : task.status === 'IN_PROGRESS'
-                            ? 'bg-amber-950 text-amber-400 border border-amber-800'
-                            : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {task.status}
-                      </span>
-                    </div>
-                    <h3 className="text-sm font-semibold text-slate-200">{task.name}</h3>
-                    <p className="text-xs text-slate-400">{task.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </main>
@@ -2819,7 +3128,7 @@ export default function App() {
 
       {/* Footer Info */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-3 px-4 sm:px-6 text-center text-xs text-slate-500">
-        AI Account Manager PWA • ZLCE Lite Governance • IndexedDB Local Storage • GitHub Pages Compatible
+        AI Account Manager PWA • Penyimpanan Lokal IndexedDB • PWA Siap Pakai & Aman
       </footer>
     </div>
   );

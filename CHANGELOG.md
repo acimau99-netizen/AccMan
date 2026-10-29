@@ -7,6 +7,19 @@ Mengikuti Keep a Changelog dan SemVer. Perubahan Level S (`[MINOR]`) dan task re
 ## [Unreleased]
 
 ### Added
+- [TASK-REV-08] Integrasi Google Sheets API Langsung via OAuth & Drive Picker (`src/google/auth.ts`, `src/google/sheets-api.ts`, `src/App.tsx`, `tests/google-sheets.test.ts`):
+  - Integrasi OAuth Klien Mandiri: Menggunakan Firebase Auth GoogleAuthProvider dengan penyimpanan access token in-memory eksklusif untuk cakupan Google Drive & Google Sheets API v4 tanpa server backend redirect flow.
+  - Pembuatan Spreadsheet 1-Klik: Fungsi `createGoogleSpreadsheet` membuat berkas spreadsheet baru di Google Drive pengguna lengkap dengan 6 tab terstruktur (`metadata`, `services`, `persons`, `access`, `logs`, `handoff`) dan header kolom terformat.
+  - Penjelajah File Google Drive: Fitur `findUserSpreadsheets` mengambil daftar berkas Google Spreadsheet terkini milik akun pengguna untuk pemilihan berkas cadangan secara instan.
+  - Pencadangan & Pemulihan Google Sheets REST API v4: Fungsi `backupDirectToGoogleSheets` dan `restoreDirectFromGoogleSheets` menyinkronkan data IndexedDB langsung ke spreadsheet via batchUpdate & batchGet tanpa bergantung pada Web App Apps Script pihak ketiga.
+  - Dialog Konfirmasi & Snapshot Pra-Restore: Menampilkan ringkasan perbandingan data remote vs lokal sebelum restore dengan proteksi fail-closed terhadap spreadsheet kosong dan snapshot lokal otomatis.
+  - Pengujian Komprehensif: 4/4 test cases lulus di `tests/google-sheets.test.ts` (total 74/74 unit tests lulus di seluruh 17 test files).
+- [TASK-REV-07] Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi Elemen ZLCE (`src/App.tsx`):
+  - Eliminasi Tab Internal: Menghapus tab generator recovery ('ZLCE Recovery') dan matriks backlog task ('Matriks Task') dari bilah navigasi pengguna sehingga navigasi hanya menampilkan 6 modul fungsional produk.
+  - Sanitasi Nama Tab: Menghapus sufiks nomor task internal (TASK-004 s/d TASK-011) dari seluruh tombol navigasi sehingga antarmuka tampak profesional dan ramah pengguna.
+  - Pembersihan Header & Footer: Mengganti subtitle teknis menjadi "Multi-Akun AI & Reset Timer • IndexedDB Offline", memperbarui lencana header menjadi "PWA Siap Pakai", dan memperbarui footer hak cipta/informasi penyimpanan lokal.
+  - Penyelarasan Banner Hero: Mengganti badge nomor task teknis pada setiap tab dengan highlight fungsional modul (Manajemen Sesi Cepat, Pelacakan Waktu Nyata, Audit Trail & Kolaborasi Tim, Manajemen Multi-Akun, Konfigurasi Layanan AI).
+  - Integritas Penuh: 70/70 unit test lulus di 16 test files dan build produksi sukses (exit 0).
 - [TASK-REV-06] Kesiapan PWA Android WebAPK, Ikon PNG Fisik, Tautan Live HTTPS & Panduan Interaktif (`public/manifest.webmanifest`, `public/icon-*.png`, `src/components/PwaInstallGuideModal.tsx`, `TUTORIAL_INSTALL_PWA_ANDROID.md`, `tests/pwa-offline.test.ts`):
   - Aset PNG WebAPK Fisik: Menghasilkan berkas PNG valid `public/icon-192.png`, `public/icon-512.png`, `public/icon-maskable-512.png` (dengan 15% safe-zone margin), dan `public/apple-touch-icon.png` (180x180 px) untuk memenuhi standar Android OS WebAPK.
   - Tautan Live HTTPS Terverifikasi: Mencantumkan URL produksi (`https://ais-pre-67vxjndwqva5pmnr234qt6-557789186714.asia-southeast1.run.app`) dan alternatif dev di dokumen dan komponen UI.
