@@ -76,6 +76,7 @@ export interface Settings {
   googleSpreadsheetUrl?: string;
   googleSpreadsheetTitle?: string;
   lastGoogleSyncAt?: string;
+  activeSyncMethod?: 'apps-script' | 'google-direct';
   maxPersons: number;  // default: 10
   updatedAt: string;
 }

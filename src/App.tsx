@@ -191,7 +191,8 @@ export default function App() {
   const [isSyncingSheet, setIsSyncingSheet] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // State Google Apps Script Web App
+  // State Google Apps Script Web App & Metode Sinkronisasi
+  const [activeSyncMethod, setActiveSyncMethod] = useState<'apps-script' | 'google-direct'>('apps-script');
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -253,6 +254,7 @@ export default function App() {
       setServices(allServices);
       setAccessList(allAccess);
       setAppSettings(dbSettings);
+      setActiveSyncMethod(dbSettings.activeSyncMethod || 'apps-script');
       setSheetEndpointInput(dbSettings.sheetEndpoint || '');
       setSheetSecretInput(dbSettings.sheetSecret || '');
       setSheetSpreadsheetIdInput(dbSettings.googleSpreadsheetId || '');
@@ -563,6 +565,26 @@ export default function App() {
     }
   };
 
+  const handleSelectSyncMethod = async (method: 'apps-script' | 'google-direct') => {
+    setActiveSyncMethod(method);
+    try {
+      const updated: Settings = {
+        ...settings,
+        activeSyncMethod: method,
+        updatedAt: new Date().toISOString(),
+      };
+      await saveSettings(updated);
+      setAppSettings(updated);
+      setBackupNotice(
+        method === 'apps-script'
+          ? 'Metode aktif berhasil dialihkan ke: Google Apps Script Web App (Skrip Code.gs Pribadi).'
+          : 'Metode aktif berhasil dialihkan ke: Google Workspace Direct Sheets API (OAuth Resmi).'
+      );
+    } catch (e) {
+      console.warn('Gagal menyimpan preferensi metode sinkronisasi:', e);
+    }
+  };
+
   const handleCreateDirectSpreadsheetClick = async () => {
     const token = await getAccessToken();
     if (!token) {
@@ -701,6 +723,7 @@ export default function App() {
         sheetEndpoint: sheetEndpointInput.trim(),
         sheetSecret: sheetSecretInput.trim(),
         googleSpreadsheetId: sheetSpreadsheetIdInput.trim() || undefined,
+        activeSyncMethod,
         updatedAt: new Date().toISOString(),
       };
       await saveSettings(updated);
@@ -2112,21 +2135,96 @@ export default function App() {
               </div>
             )}
 
-            {/* SEKSI UTAMA: GOOGLE WORKSPACE OAUTH & DIRECT GOOGLE SHEETS API (OFFICIAL 1-CLICK SYNC) */}
-            <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950/40 border border-sky-800/80 rounded-2xl p-6 space-y-5 shadow-2xl">
+            {/* SELEKTOR METODE SINKRONISASI GOOGLE SHEETS */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-white">Metode Sinkronisasi Cloud</h3>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
+                      {activeSyncMethod === 'apps-script' ? 'Apps Script Aktif' : 'OAuth Direct Aktif'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Pilih antara metode skrip mandiri (Google Apps Script) atau koneksi OAuth resmi Google Workspace.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex p-1 bg-slate-950 border border-slate-800 rounded-xl gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleSelectSyncMethod('apps-script')}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition cursor-pointer ${
+                    activeSyncMethod === 'apps-script'
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 font-bold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Google Apps Script Web App</span>
+                  {activeSyncMethod === 'apps-script' && (
+                    <span className="text-[9px] bg-emerald-950 text-emerald-200 border border-emerald-700 px-1.5 py-0.5 rounded font-mono">AKTIF</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectSyncMethod('google-direct')}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition cursor-pointer ${
+                    activeSyncMethod === 'google-direct'
+                      ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 font-bold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  }`}
+                >
+                  <Cloud className="w-4 h-4" />
+                  <span>Google Workspace Direct (OAuth)</span>
+                  {activeSyncMethod === 'google-direct' && (
+                    <span className="text-[9px] bg-sky-950 text-sky-200 border border-sky-700 px-1.5 py-0.5 rounded font-mono">AKTIF</span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* SEKSI: GOOGLE WORKSPACE OAUTH & DIRECT GOOGLE SHEETS API (OFFICIAL 1-CLICK SYNC) */}
+            <div className={`bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950/40 rounded-2xl p-6 space-y-5 shadow-2xl transition border ${
+              activeSyncMethod === 'google-direct'
+                ? 'border-sky-500/80 ring-2 ring-sky-500/20'
+                : 'border-slate-800 opacity-95'
+            }`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                 <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-sky-950 border border-sky-800 flex items-center justify-center text-sky-400 shadow-lg shadow-sky-600/10 shrink-0">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg shrink-0 ${
+                    activeSyncMethod === 'google-direct'
+                      ? 'bg-sky-900 border border-sky-500 text-sky-200'
+                      : 'bg-sky-950 border border-sky-800 text-sky-400'
+                  }`}>
                     <Cloud className="w-6 h-6" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-bold text-white">Google Workspace Direct Sheets API</h3>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-800 font-semibold">
                         OAuth 2.0 Resmi
                       </span>
+                      {activeSyncMethod === 'google-direct' ? (
+                        <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-700 font-semibold flex items-center gap-1.5 shadow-sm">
+                          <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+                          Metode Aktif Digunakan
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSelectSyncMethod('google-direct')}
+                          className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-800 hover:bg-sky-900/80 text-slate-300 hover:text-sky-200 border border-slate-700 transition cursor-pointer"
+                        >
+                          Aktifkan Metode Ini
+                        </button>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-300">
+                    <p className="text-xs text-slate-300 mt-0.5">
                       Sinkronisasi dua arah instan ke Google Drive & Google Sheets tanpa perlu menyalin skrip Code.gs
                     </p>
                   </div>
@@ -2298,21 +2396,43 @@ export default function App() {
               )}
             </div>
 
-            {/* SEKSI 2: GOOGLE SHEETS VIA APPS SCRIPT WEB APP (ALTERNATIVE SCRIPT INTEGRATION) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
+            {/* SEKSI: GOOGLE SHEETS VIA APPS SCRIPT WEB APP (ALTERNATIVE SCRIPT INTEGRATION) */}
+            <div className={`bg-slate-900 rounded-2xl p-6 space-y-6 shadow-xl transition border ${
+              activeSyncMethod === 'apps-script'
+                ? 'border-emerald-500/80 ring-2 ring-emerald-500/20 shadow-emerald-950/40'
+                : 'border-slate-800 opacity-95'
+            }`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400 shadow-md">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md shrink-0 ${
+                    activeSyncMethod === 'apps-script'
+                      ? 'bg-emerald-900 border border-emerald-500 text-emerald-300'
+                      : 'bg-emerald-950 border border-emerald-800 text-emerald-400'
+                  }`}>
                     <FileSpreadsheet className="w-6 h-6" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-bold text-white">Metode Alternatif: Google Apps Script Web App</h3>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
                         Kunci Rahasia & Endpoint
                       </span>
+                      {activeSyncMethod === 'apps-script' ? (
+                        <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700 font-semibold flex items-center gap-1.5 shadow-sm">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                          Metode Aktif Digunakan
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSelectSyncMethod('apps-script')}
+                          className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-800 hover:bg-emerald-900/80 text-slate-300 hover:text-emerald-200 border border-slate-700 transition cursor-pointer"
+                        >
+                          Aktifkan Metode Ini
+                        </button>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-400 mt-0.5">
                       Penyimpanan lokal di IndexedDB • Cadangan & pemulihan dua arah ke Google Sheets via skrip Code.gs pribadi
                     </p>
                   </div>
@@ -2506,6 +2626,37 @@ export default function App() {
                     </div>
                   </div>
                 )}
+
+                {/* Tombol Aksi Utama: Cadangkan & Pulihkan ke Google Sheets via Apps Script */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-800/80">
+                  <button
+                    onClick={handleSyncToSheet}
+                    disabled={isSyncingSheet || !sheetEndpointInput || !sheetSecretInput}
+                    className={`p-3.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-lg transition cursor-pointer ${
+                      isSyncingSheet || !sheetEndpointInput || !sheetSecretInput
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
+                    }`}
+                    title="Kirim seluruh data IndexedDB ke Google Sheets via Google Apps Script Web App"
+                  >
+                    <Upload className={`w-4 h-4 ${isSyncingSheet ? 'animate-bounce' : ''}`} />
+                    <span>{isSyncingSheet ? 'Menyinkronkan ke Google Sheets...' : 'Cadangkan ke Google Sheets (via Apps Script)'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleRestoreFromSheet}
+                    disabled={isSyncingSheet || !sheetEndpointInput || !sheetSecretInput}
+                    className={`p-3.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 border transition cursor-pointer ${
+                      isSyncingSheet || !sheetEndpointInput || !sheetSecretInput
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed border-slate-800'
+                        : 'bg-slate-950 hover:bg-slate-900 text-rose-300 border-rose-900/40 hover:border-rose-800'
+                    }`}
+                    title="Pulihkan data dari Google Sheets ke IndexedDB dengan perlindungan snapshot lokal (Fail-Closed)"
+                  >
+                    <Download className={`w-4 h-4 ${isSyncingSheet ? 'animate-bounce' : ''}`} />
+                    <span>Pulihkan dari Google Sheets (via Apps Script)</span>
+                  </button>
+                </div>
 
               </div>
             </div>

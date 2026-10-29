@@ -363,5 +363,24 @@ MODE LITE: `Docs Impact` hanya merujuk `BLUEPRINT` / `TASKS`; `Test Case` meruju
 * **Test Case:** `google-sheets.test::workspace_scopes_include_sheets_and_drive`, `google-sheets.test::in_memory_token_management`, `google-sheets.test::createGoogleSpreadsheet_creates_formatted_sheets`, `google-sheets.test::backupDirectToGoogleSheets_roundtrip`
 * **Metode Verifikasi:** Vitest test runner (74 tests pass) + `compile_applet` exit 0; tempel bukti.
 
+---
+
+### TASK-REV-09: Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri
+* **Fase:** FASE REVISI (Aktivasi Metode Cadangan)
+* **Deskripsi:** Mengaktifkan opsi metode Google Apps Script Web App sebagai metode sinkronisasi cloud aktif dengan kontrol pemilih metode (segmented switch), status badge "Metode Aktif Digunakan", penataan prioritas visual antarmuka, serta penyediaan tombol aksi langsung untuk pencadangan ("Cadangkan ke Google Sheets via Apps Script") dan pemulihan ("Pulihkan dari Google Sheets via Apps Script") di antarmuka pengguna.
+* **Dependensi:** `TASK-REV-08`
+* **File:** `src/storage/types.ts`, `src/App.tsx`, `tests/backup-sheet.test.ts`, `tests/sheet-probe.test.ts`
+* **Docs Terkait (Tier 1):** `BLUEPRINT.md` (bagian 4), `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Docs Impact:** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Acceptance Criteria:**
+  1. Pengguna dapat memilih dan mengaktifkan metode sinkronisasi secara dinamis antara "Google Apps Script Web App" dan "Google Workspace Direct Sheets API (OAuth)". Preferensi tersimpan di `Settings.activeSyncMethod` dan dimuat otomatis saat inisialisasi aplikasi.
+  2. Saat metode Apps Script aktif, kartu antarmuka Apps Script Web App menampilkan lencana visual "Metode Aktif Digunakan" dengan indikator hijau berdenyut dan border aksen emerald.
+  3. Tersedia tombol aksi utama "Cadangkan ke Google Sheets (via Apps Script)" yang memicu fungsi `handleSyncToSheet` (`executeSheetBackup`) untuk mengekspor seluruh data ke Google Sheets melalui skrip Code.gs.
+  4. Tersedia tombol aksi utama "Pulihkan dari Google Sheets (via Apps Script)" yang memicu fungsi `handleRestoreFromSheet` (`executeSheetRestore`) dengan modal konfirmasi interaktif, perbandingan jumlah entitas, dan proteksi Fail-Closed pre-restore snapshot.
+  5. Seluruh 74 unit test di 17 berkas pengujian lulus tanpa regresi, `tsc --noEmit` 0 error, dan `compile_applet` berhasil.
+* **Test Case:** `backup-sheet.test::roundtrip_identical`, `backup-sheet.test::restore_confirmation_with_counts`, `sheet-probe.test::action_generate_tables`
+* **Metode Verifikasi:** Vitest test runner (74 tests pass) + `compile_applet` exit 0; tempel bukti.
+
+
 
 

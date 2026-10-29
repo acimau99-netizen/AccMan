@@ -20,8 +20,8 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 * **Timestamp Audit:** 2026-10-29 jam: ?
 * **Cabang Git:** `main`
 * **Task Terakhir DONE:** `TASK-REV-08`
-* **Task Aktif:** `-`
-* **Status Task Aktif:** `PENDING`
+* **Task Aktif:** `TASK-REV-09`
+* **Status Task Aktif:** `IN_PROGRESS`
 * **Task Berikutnya:** -
 
 ---
@@ -50,6 +50,7 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 | `TASK-REV-06` | Kesiapan PWA Android WebAPK, Ikon PNG & Tautan HTTPS Live | TASK-REV-02, TASK-012 | DONE | 10/10 pwa-offline.test pass (total 70/70 pass di 16 files), icon-192.png, icon-512.png, maskable-512, QR scan modal, TUTORIAL_INSTALL_PWA_ANDROID.md | ya |
 | `TASK-REV-07` | Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi ZLCE | TASK-REV-06 | DONE | 70/70 vitest pass (16 files), tsc 0 error, build exit 0; eliminasi tab ZLCE & task matrix, sanitasi nama tab, subtitle/footer bersih | ya |
 | `TASK-REV-08` | Integrasi Google Sheets API Langsung via OAuth & Drive Picker | TASK-REV-07 | DONE | 74/74 vitest pass (17 files), tsc 0 error, build exit 0; OAuth in-memory token, 1-click create sheet 6 tab, drive file picker, batchUpdate/batchGet sync direct | ya |
+| `TASK-REV-09` | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | TASK-REV-08 | IN_PROGRESS | 74/74 vitest pass (17 files), tsc 0 error, build exit 0; selektor mode cloud, badge aktif Apps Script, tombol cadangkan & pulihkan via skrip | - |
 
 Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: ya` tidak valid.
 
@@ -59,12 +60,12 @@ Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: y
 
 Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH langkah selesai. Kosongkan (semua `-`) saat task `DONE`.
 
-* **Task:** -
-* **Langkah Sedang Dikerjakan:** -
-* **Berkas Direncanakan/Disentuh:** -
-* **Sudah Dilakukan:** -
-* **Langkah Berikutnya (persis):** -
-* **Perintah Verifikasi:** -
+* **Task:** `TASK-REV-09`
+* **Langkah Sedang Dikerjakan:** Verifikasi akhir dan konfirmasi persetujuan DONE.
+* **Berkas Direncanakan/Disentuh:** `src/storage/types.ts`, `src/App.tsx`, `TASKS.md`, `CHANGELOG.md`, `SESSION_STATE.md`
+* **Sudah Dilakukan:** Selektor metode sinkronisasi cloud ditambahkan; preferensi `activeSyncMethod` tersimpan di `Settings`; badge aktif berdenyut "Metode Aktif Digunakan" dan aksen emerald disematkan pada kartu Google Apps Script Web App; tombol aksi "Cadangkan ke Google Sheets (via Apps Script)" dan "Pulihkan dari Google Sheets (via Apps Script)" terpasang; 74/74 unit tests lulus (17 files); tsc 0 error; compile exit 0.
+* **Langkah Berikutnya (persis):** Menerima persetujuan eksplisit DONE TASK-REV-09 dari pengguna, kosongkan WAL, dan kunci status DONE.
+* **Perintah Verifikasi:** `npm test -- --run` dan `compile_applet`
 * **Diperbarui:** 2026-10-29 jam: ?
 
 ---
@@ -91,6 +92,24 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 | `TASK-REV-06` | Level M | Kesiapan PWA Android WebAPK, Ikon PNG & Tautan Live HTTPS | DONE (disetujui pengguna) |
 | `TASK-REV-07` | Level M | Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi Elemen ZLCE | DONE (disetujui pengguna) |
 | `TASK-REV-08` | Level M | Integrasi Google Sheets API Langsung via OAuth & Drive Picker | DONE (disetujui pengguna) |
+| `TASK-REV-09` | Level M | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | IN_PROGRESS (verifikasi lolos, menunggu persetujuan DONE) |
+
+---
+
+## 6. CATATAN SERAH TERIMA (ditimpa; maks. ~10 baris)
+
+* [2026-10-29 jam: ?] TASK-REV-09 selesai diimplementasikan & diverifikasi penuh: Metode Alternatif Google Apps Script Web App telah aktif digunakan.
+* [2026-10-29 jam: ?] Bilah selektor metode sinkronisasi cloud terpasang di atas tab Cadangan & Google Sheet dengan opsi Apps Script Web App vs OAuth Direct.
+* [2026-10-29 jam: ?] Kartu Google Apps Script Web App ditandai dengan badge berdenyut "Metode Aktif Digunakan" dan aksen border emerald.
+* [2026-10-29 jam: ?] Tombol aksi utama "Cadangkan ke Google Sheets (via Apps Script)" dan "Pulihkan dari Google Sheets (via Apps Script)" telah aktif dan siap dipakai.
+* [2026-10-29 jam: ?] Preferensi metode sinkronisasi tersimpan di database lokal IndexedDB `Settings.activeSyncMethod`.
+* [2026-10-29 jam: ?] 74/74 unit tests di 17 berkas test lulus 100%, tsc --noEmit 0 error, build & compile_applet exit 0.
+
+---
+
+## 7. LOG AUDIT (terbaru di atas; arsipkan entri lama ke `docs/archive/`)
+
+* [2026-10-29 jam: ?] TASK-REV-09 implementasi & verifikasi selesai (74/74 tests pass di 17 files, tsc 0 error, build exit 0). Metode Google Apps Script Web App aktif digunakan dengan selektor metode, badge visual aktif, dan tombol cadangkan & pulihkan mandiri. Menunggu persetujuan DONE pengguna.
 
 ---
 

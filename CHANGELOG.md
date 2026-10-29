@@ -7,6 +7,12 @@ Mengikuti Keep a Changelog dan SemVer. Perubahan Level S (`[MINOR]`) dan task re
 ## [Unreleased]
 
 ### Added
+- [TASK-REV-09] Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri (`src/storage/types.ts`, `src/App.tsx`, `TASKS.md`):
+  - Pengatur Metode Sinkronisasi Cloud: Menambahkan baris selektor metode interaktif di bagian atas modul cadangan untuk memilih secara dinamis antara Google Apps Script Web App dan Google Workspace Direct Sheets API.
+  - Lencana Visual & Status Aktif: Kartu Google Apps Script Web App menampilkan status lencana "Metode Aktif Digunakan" dengan indikator visual hijau berdenyut dan aksen border emerald saat metode ini dipilih.
+  - Tombol Aksi Cadangkan & Pulihkan Apps Script: Menyediakan tombol aksi langsung "Cadangkan ke Google Sheets (via Apps Script)" dan "Pulihkan dari Google Sheets (via Apps Script)" dengan dialog konfirmasi perbandingan data dan proteksi snapshot lokal.
+  - Persistensi Pengaturan: Menyimpan preferensi `activeSyncMethod` di database IndexedDB `Settings` sehingga metode yang dipilih tetap aktif saat aplikasi dibuka kembali.
+  - Pengujian Lolos 100%: 74/74 unit tests di 17 test files lulus, tsc --noEmit 0 error, build produksi sukses.
 - [TASK-REV-08] Integrasi Google Sheets API Langsung via OAuth & Drive Picker (`src/google/auth.ts`, `src/google/sheets-api.ts`, `src/App.tsx`, `tests/google-sheets.test.ts`):
   - Integrasi OAuth Klien Mandiri: Menggunakan Firebase Auth GoogleAuthProvider dengan penyimpanan access token in-memory eksklusif untuk cakupan Google Drive & Google Sheets API v4 tanpa server backend redirect flow.
   - Pembuatan Spreadsheet 1-Klik: Fungsi `createGoogleSpreadsheet` membuat berkas spreadsheet baru di Google Drive pengguna lengkap dengan 6 tab terstruktur (`metadata`, `services`, `persons`, `access`, `logs`, `handoff`) dan header kolom terformat.
