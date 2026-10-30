@@ -17,11 +17,11 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 
 ## 1. STATUS AKTIF
 
-* **Timestamp Audit:** 2026-10-29 jam: ?
+* **Timestamp Audit:** 2026-10-30T02:31:43-07:00
 * **Cabang Git:** `main`
-* **Task Terakhir DONE:** `TASK-REV-09`
-* **Task Aktif:** `TASK-REV-10`
-* **Status Task Aktif:** `IN_PROGRESS`
+* **Task Terakhir DONE:** `TASK-REV-11`
+* **Task Aktif:** -
+* **Status Task Aktif:** -
 * **Task Berikutnya:** -
 
 ---
@@ -51,7 +51,8 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 | `TASK-REV-07` | Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi ZLCE | TASK-REV-06 | DONE | 70/70 vitest pass (16 files), tsc 0 error, build exit 0; eliminasi tab ZLCE & task matrix, sanitasi nama tab, subtitle/footer bersih | ya |
 | `TASK-REV-08` | Integrasi Google Sheets API Langsung via OAuth & Drive Picker | TASK-REV-07 | DONE | 74/74 vitest pass (17 files), tsc 0 error, build exit 0; OAuth in-memory token, 1-click create sheet 6 tab, drive file picker, batchUpdate/batchGet sync direct | ya |
 | `TASK-REV-09` | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | TASK-REV-08 | DONE | 74/74 vitest pass (17 files), tsc 0 error, build exit 0; selektor mode cloud, badge aktif Apps Script, tombol cadangkan & pulihkan via skrip, probe & simpan pengaturan verified | ya |
-| `TASK-REV-10` | Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) ke Tabel IndexedDB | TASK-REV-09 | IN_PROGRESS | 75/75 vitest pass (17 files), tsc 0 error, build exit 0; 86 entitas terpulihkan ke IndexedDB, auto-seed/restore aktif, tombol 1-ketuk cadangan terlampir terverifikasi | - |
+| `TASK-REV-10` | Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) ke Tabel IndexedDB | TASK-REV-09 | DONE | 75/75 vitest pass (17 files), tsc 0 error, build exit 0; 86 entitas terpulihkan ke IndexedDB, auto-seed/restore aktif, tombol 1-ketuk cadangan terlampir terverifikasi | ya |
+| `TASK-REV-11` | Modernisasi PWA Informatif-Dekoratif, Aksesibilitas Ramah Pengguna & Fungsionalitas Penuh Tombol Antarmuka | TASK-REV-10 | DONE | 75/75 vitest pass (17 files), tsc 0 error, compile_applet exit 0; Service Quota Matrix, Live Header Telemetry, Zero Dead Buttons, Duration Presets, CSV Export | ya |
 
 Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: ya` tidak valid.
 
@@ -61,13 +62,13 @@ Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: y
 
 Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH langkah selesai. Kosongkan (semua `-`) saat task `DONE`.
 
-* **Task:** `TASK-REV-10`
-* **Langkah Sedang Dikerjakan:** Verifikasi restorasi dataset terlampir dan pelaporan kepada pengguna.
-* **Berkas Direncanakan/Disentuh:** `src/storage/initial-backup.ts`, `src/App.tsx`, `tests/backup-json.test.ts`, `TASKS.md`, `CHANGELOG.md`, `SESSION_STATE.md`
-* **Sudah Dilakukan:** Modul `src/storage/initial-backup.ts` dibuat memuat dataset 86 entitas (6 layanan, 9 akun, 23 akses, 35 log, 13 catatan); `loadAllData()` di `src/App.tsx` otomatis memulihkan dataset cadangan terlampir ke IndexedDB; tombol 1-ketuk "Pulihkan Dataset Terlampir" dan modal konfirmasi proteksi fail-closed disematkan di tab Cadangan; pengujian unit di `tests/backup-json.test.ts` (11/11 tests pass) dan seluruh 75 tests di 17 berkas lulus 100%; tsc 0 error; compile exit 0.
-* **Langkah Berikutnya (persis):** Menunggu konfirmasi persetujuan pengguna untuk menandai DONE TASK-REV-10.
-* **Perintah Verifikasi:** `npm test -- --run` dan `compile_applet`
-* **Diperbarui:** 2026-10-29 jam: ?
+* **Task:** -
+* **Langkah Sedang Dikerjakan:** -
+* **Berkas Direncanakan/Disentuh:** -
+* **Sudah Dilakukan:** -
+* **Langkah Berikutnya (persis):** -
+* **Perintah Verifikasi:** -
+* **Diperbarui:** 2026-10-30T02:31:43-07:00
 
 ---
 
@@ -94,22 +95,28 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 | `TASK-REV-07` | Level M | Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi Elemen ZLCE | DONE (disetujui pengguna) |
 | `TASK-REV-08` | Level M | Integrasi Google Sheets API Langsung via OAuth & Drive Picker | DONE (disetujui pengguna) |
 | `TASK-REV-09` | Level M | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | DONE (disetujui pengguna) |
-| `TASK-REV-10` | Level M | Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) ke Tabel IndexedDB | IN_PROGRESS (verifikasi lolos, menunggu persetujuan DONE) |
+| `TASK-REV-10` | Level M | Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) ke Tabel IndexedDB | DONE (disetujui pengguna) |
+| `TASK-REV-11` | Level M | Modernisasi PWA Informatif-Dekoratif, Aksesibilitas Ramah Pengguna & Fungsionalitas Penuh Tombol Antarmuka | DONE (disetujui pengguna) |
 
 ---
 
 ## 6. CATATAN SERAH TERIMA (ditimpa; maks. ~10 baris)
 
-* [2026-10-29 jam: ?] TASK-REV-10 selesai diimplementasikan & diverifikasi: Dataset cadangan terlampir (ai-account-manager-backup-2026-10-30_a97ae634.json) berhasil dipulihkan ke seluruh tabel IndexedDB aplikasi.
-* [2026-10-29 jam: ?] Total 86 entitas terverifikasi utuh: 6 Layanan AI (AI Studio, ChatGPT, Claude, DeepSeek, Freebuff, X Twitter), 9 Akun Google, 23 Hak Akses Layanan, 35 Log Riwayat Pemakaian, dan 13 Catatan Lanjutan Tim.
-* [2026-10-29 jam: ?] Mekanisme auto-restore diaktifkan saat inisialisasi PWA (`loadAllData`) sehingga tabel langsung terisi penuh tanpa perlu unggah berkas manual.
-* [2026-10-29 jam: ?] Tombol aksi "Pulihkan Dataset Terlampir" disematkan pada tab Cadangan dengan dialog konfirmasi dan proteksi snapshot lokal.
-* [2026-10-29 jam: ?] Seluruh 75 unit test di 17 berkas test lulus 100%, tsc --noEmit 0 error, build & compile_applet exit 0.
+* [2026-10-30T02:31:43-07:00] TASK-REV-11 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-11"). WAL dikosongkan.
+* [2026-10-30T02:31:43-07:00] PWA kini 100% fungsional pada seluruh kontrol: Buka Sesi, Salin Tautan Akses (`?authuser=...`), Buka Web Langsung, Stop Sesi, Tandai Limit & Koreksi Reset.
+* [2026-10-30T02:31:43-07:00] Header Telemetry Bar aktif: stopwatch sesi berjalan, counter ketersediaan akun [7/9 READY] dengan switch filter cepat, dan penunjuk metode sinkronisasi.
+* [2026-10-30T02:31:43-07:00] Service Quota Matrix aktif di Dashboard untuk 6 layanan AI dengan visual progress bar & filter 1-ketuk.
+* [2026-10-30T02:31:43-07:00] Preset durasi limit (+1h, +2h, +3h, +4h, +8h, Pasifik 00:00) mempermudah manajemen kuota tanpa entri datetime manual.
+* [2026-10-30T02:31:43-07:00] Riwayat interaktif: pencarian kata kunci, filter kategori tipe event, template catatan cepat tim, dan ekspor CSV mandiri.
+* [2026-10-30T02:31:43-07:00] Zero-pill discipline diterapkan penuh dengan tipografi monospace tabular dan feedback sentuh taktil mikro.
+* [2026-10-30T02:31:43-07:00] Seluruh 75 unit test lulus di 17 berkas test, tsc 0 error, build & compile_applet exit 0.
 
 ---
 
 ## 7. LOG AUDIT (terbaru di atas; arsipkan entri lama ke `docs/archive/`)
 
+* [2026-10-30T02:31:43-07:00] TASK-REV-11 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-11"). WAL dikosongkan. Seluruh 100% kontrol tombol berfungsi nyata tanpa elemen kosmetik mati, Service Quota Matrix aktif, telemetri header real-time terpasang, preset durasi limit instan berfungsi, ekspor CSV riwayat mandiri selesai, dan zero-pill typography diterapkan penuh. 75/75 tests pass di 17 files, tsc 0 error, compile_applet sukses.
+* [2026-10-29 jam: ?] TASK-REV-11 implementasi & verifikasi selesai (75/75 vitest pass di 17 files, tsc 0 error, build & compile_applet exit 0). Seluruh AC-1 s/d AC-5 terpenuhi: Live Header Telemetry, Service Quota Matrix, 100% tombol interaktif fungsional nyata, preset durasi limit, ekspor CSV riwayat, dan zero-pill typography. Menunggu persetujuan DONE pengguna.
 * [2026-10-29 jam: ?] TASK-REV-10 implementasi & verifikasi selesai (75/75 unit tests lulus di 17 files, tsc 0 error, build exit 0). Seluruh 86 entitas cadangan terlampir telah dipulihkan ke tabel IndexedDB aplikasi. Menunggu persetujuan DONE pengguna.
 
 ---

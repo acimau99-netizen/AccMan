@@ -383,21 +383,45 @@ MODE LITE: `Docs Impact` hanya merujuk `BLUEPRINT` / `TASKS`; `Test Case` meruju
 
 ---
 
-### TASK-REV-10: Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 24 Akses, 34 Log, 13 Catatan) ke Tabel IndexedDB
+### TASK-REV-10: Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) ke Tabel IndexedDB
 * **Fase:** FASE REVISI (Restorasi Dataset Cadangan)
-* **Deskripsi:** Memulihkan seluruh data cadangan terlampir (`ai-account-manager-backup-2026-10-30_a97ae634.json`) ke dalam tabel database IndexedDB lokal aplikasi (`ai_account_manager_db`). Mengintegrasikan modul `src/storage/initial-backup.ts`, auto-restore/seed saat inisialisasi aplikasi jika basis data kosong atau versi belum diterapkan, menyediakan tombol 1-ketuk "Pulihkan Cadangan Terlampir (30 Okt 2026)" di tab Cadangan, serta memverifikasi seluruh 6 layanan, 9 akun, 24 hak akses, 34 log riwayat, dan 13 catatan lanjutan berhasil dimuat dan beroperasi penuh di seluruh modul antarmuka (Dashboard, Sesi, Riwayat, Akun, Layanan).
+* **Deskripsi:** Memulihkan seluruh data cadangan terlampir (`ai-account-manager-backup-2026-10-30_a97ae634.json`) ke dalam tabel database IndexedDB lokal aplikasi (`ai_account_manager_db`). Mengintegrasikan modul `src/storage/initial-backup.ts`, auto-restore/seed saat inisialisasi aplikasi jika basis data kosong atau versi belum diterapkan, menyediakan tombol 1-ketuk "Pulihkan Cadangan Terlampir (30 Okt 2026)" di tab Cadangan, serta memverifikasi seluruh 6 layanan, 9 akun, 23 hak akses, 35 log riwayat, dan 13 catatan lanjutan berhasil dimuat dan beroperasi penuh di seluruh modul antarmuka (Dashboard, Sesi, Riwayat, Akun, Layanan).
 * **Dependensi:** `TASK-REV-09`
 * **File:** `src/storage/initial-backup.ts`, `src/App.tsx`, `tests/backup-json.test.ts`
 * **Docs Terkait (Tier 1):** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
 * **Docs Impact:** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
 * **Acceptance Criteria:**
-  1. Modul `src/storage/initial-backup.ts` memuat dataset terlampir lengkap (6 services, 9 persons, 24 access, 34 logs, 13 handoffNotes).
+  1. Modul `src/storage/initial-backup.ts` memuat dataset terlampir lengkap (6 services, 9 persons, 23 access, 35 logs, 13 handoffNotes - total 86 entitas).
   2. Saat aplikasi dimuat, PWA otomatis memulihkan dataset ini ke tabel IndexedDB lokal jika tabel persons masih kosong atau flag `ai_account_manager_backup_restored_20261030` belum diset, sehingga seluruh akun, layanan, log, dan catatan langsung muncul di antarmuka tanpa perlu impor manual.
-  3. Pada tab Cadangan & Google Sheet, disediakan kartu aksi "Berkas Cadangan Terlampir (30 Okt 2026)" dengan tombol 1-ketuk "Pulihkan Cadangan Ini Sekarang" lengkap dengan ringkasan entitas (6 Layanan, 9 Akun, 24 Akses, 34 Log, 13 Catatan) dan modal konfirmasi proteksi fail-closed.
+  3. Pada tab Cadangan & Google Sheet, disediakan kartu aksi "Berkas Cadangan Terlampir (30 Okt 2026)" dengan tombol 1-ketuk "Pulihkan Cadangan Ini Sekarang" lengkap dengan ringkasan entitas (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) dan modal konfirmasi proteksi fail-closed.
   4. Pengujian unit di `tests/backup-json.test.ts` memverifikasi proses impor dataset `PRELOADED_BACKUP_20261030` berhasil 100%, menghasilkan 86 total entitas, dan mempertahankan integritas relasional (0 regresi).
   5. Seluruh unit tests (75 tests) lulus, `tsc --noEmit` 0 error, dan `compile_applet` sukses.
 * **Test Case:** `backup-json.test::import_preloaded_backup_20261030_success`
 * **Metode Verifikasi:** Vitest test runner (75 tests pass) + `compile_applet` exit 0; tempel bukti.
+
+---
+
+### TASK-REV-11: Modernisasi PWA Informatif-Dekoratif, Aksesibilitas Ramah Pengguna & Fungsionalitas Penuh Tombol Antarmuka
+* **Fase:** FASE REVISI (User Experience & Full Functional Controls)
+* **Deskripsi:** Merombak antarmuka PWA agar tampil informatif, dekoratif, dan ramah pengguna dengan zero-pill discipline (menghilangkan kapsul pil tumpul generic, digantikan oleh lencana berstruktur tajam dengan tipografi monospaced tabular), menyediakan matriks kuota layanan interaktif (Service Quota Matrix), telemetri waktu nyata di header (status online/offline, elapsed time aktif, rasio ketersediaan akun), serta memastikan 100% tombol dan elemen kontrol memiliki fungsi nyata (salin URL instan dengan authuser, buka eksternal langsung, tombol preset cepat penambahan durasi limit +1h/+2h/+3h/+4h/+8h/Pasifik 00:00, filter cepat layanan pada tab Sesi, filter jenis log & ekspor CSV pada tab Riwayat, dan umpan balik toast interaktif).
+* **Dependensi:** `TASK-REV-10`
+* **File:** `src/App.tsx`, `src/index.css`, `tests/dashboard.test.ts`, `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Docs Terkait (Tier 1):** `BLUEPRINT.md`, `TASKS.md`, `SESSION_STATE.md`
+* **Docs Impact:** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Acceptance Criteria:**
+  1. Header Telemetri Global: Menampilkan status koneksi real-time, rasio akun Ready vs Limited, penunjuk sesi berjalan aktif dengan stopwatch detik dinamis, dan chip switch metode sinkronisasi interaktif.
+  2. Matriks Kuota Layanan (Service Quota Matrix): Widget dekoratif-informatif di Dashboard yang menyajikan kartu ringkasan ketersediaan tiap layanan AI dengan visual progress bar persentase Ready, dan klik-untuk-filter instan ke kartu layanan terkait.
+  3. Zero Cosmetic-Only Buttons:
+     a. Setiap kartu akun memiliki tombol aksi nyata: "Buka Sesi (URL)", "Salin Tautan Akses" (dengan tooltip disalin), "Kunjungi Web Langsung", "Stop Sesi", dan "Tandai Limit".
+     b. Modal Tandai Limit memiliki 6 tombol preset durasi cepat (+1h, +2h, +3h, +4h, +8h, Pasifik 00:00 Besok) yang langsung menghitung dan mengisi nilai `resetAt` secara otomatis tanpa perhitungan manual pengguna.
+     c. Tab Sesi Pemakaian memiliki bilah selektor layanan 1-ketuk untuk memfilter dropdown akun akses secara instan.
+     d. Tab Riwayat & Catatan memiliki filter jenis log interaktif (Semua, Sesi Dibuka, Durasi Stop, Limit, Auto-Ready), tombol "Salin Log", dan tombol aksi fungsional "Ekspor Riwayat CSV" yang mengunduh berkas `.csv` nyata.
+     e. Tab Cadangan memiliki tombol fungsional "Salin Kode Apps Script" dan "Salin Format JSON" dengan umpan balik visual animasi centang.
+  4. Disiplin Desain Zero-Pill (`frontend-design`): Mengganti badge pil `rounded-full` menjadi lencana teknis berstruktur `rounded-md font-mono text-[11px]` dengan kontras WCAG AA tinggi, border mikro, dan respons taktil `active:scale-[0.98]`.
+  5. Seluruh 75+ unit test lulus 100%, `tsc --noEmit` 0 error, dan `compile_applet` sukses tanpa peringatan fatal.
+* **Test Case:** `tests/dashboard.test.ts`, `tests/session.test.ts`, `tests/history.test.ts`
+* **Metode Verifikasi:** Vitest test runner + `compile_applet` exit 0; tempel bukti.
+
 
 
 
