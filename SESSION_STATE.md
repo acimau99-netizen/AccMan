@@ -19,9 +19,9 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 
 * **Timestamp Audit:** 2026-10-29 jam: ?
 * **Cabang Git:** `main`
-* **Task Terakhir DONE:** `TASK-REV-08`
-* **Task Aktif:** `TASK-REV-09`
-* **Status Task Aktif:** `IN_PROGRESS`
+* **Task Terakhir DONE:** `TASK-REV-09`
+* **Task Aktif:** -
+* **Status Task Aktif:** `PENDING`
 * **Task Berikutnya:** -
 
 ---
@@ -50,7 +50,7 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 | `TASK-REV-06` | Kesiapan PWA Android WebAPK, Ikon PNG & Tautan HTTPS Live | TASK-REV-02, TASK-012 | DONE | 10/10 pwa-offline.test pass (total 70/70 pass di 16 files), icon-192.png, icon-512.png, maskable-512, QR scan modal, TUTORIAL_INSTALL_PWA_ANDROID.md | ya |
 | `TASK-REV-07` | Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi ZLCE | TASK-REV-06 | DONE | 70/70 vitest pass (16 files), tsc 0 error, build exit 0; eliminasi tab ZLCE & task matrix, sanitasi nama tab, subtitle/footer bersih | ya |
 | `TASK-REV-08` | Integrasi Google Sheets API Langsung via OAuth & Drive Picker | TASK-REV-07 | DONE | 74/74 vitest pass (17 files), tsc 0 error, build exit 0; OAuth in-memory token, 1-click create sheet 6 tab, drive file picker, batchUpdate/batchGet sync direct | ya |
-| `TASK-REV-09` | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | TASK-REV-08 | IN_PROGRESS | 74/74 vitest pass (17 files), tsc 0 error, build exit 0; selektor mode cloud, badge aktif Apps Script, tombol cadangkan & pulihkan via skrip | - |
+| `TASK-REV-09` | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | TASK-REV-08 | DONE | 74/74 vitest pass (17 files), tsc 0 error, build exit 0; selektor mode cloud, badge aktif Apps Script, tombol cadangkan & pulihkan via skrip, probe & simpan pengaturan verified | ya |
 
 Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: ya` tidak valid.
 
@@ -60,12 +60,12 @@ Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: y
 
 Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH langkah selesai. Kosongkan (semua `-`) saat task `DONE`.
 
-* **Task:** `TASK-REV-09`
-* **Langkah Sedang Dikerjakan:** Verifikasi akhir dan konfirmasi persetujuan DONE.
-* **Berkas Direncanakan/Disentuh:** `src/storage/types.ts`, `src/App.tsx`, `TASKS.md`, `CHANGELOG.md`, `SESSION_STATE.md`
-* **Sudah Dilakukan:** Selektor metode sinkronisasi cloud ditambahkan; preferensi `activeSyncMethod` tersimpan di `Settings`; badge aktif berdenyut "Metode Aktif Digunakan" dan aksen emerald disematkan pada kartu Google Apps Script Web App; tombol aksi "Cadangkan ke Google Sheets (via Apps Script)" dan "Pulihkan dari Google Sheets (via Apps Script)" terpasang; 74/74 unit tests lulus (17 files); tsc 0 error; compile exit 0.
-* **Langkah Berikutnya (persis):** Menerima persetujuan eksplisit DONE TASK-REV-09 dari pengguna, kosongkan WAL, dan kunci status DONE.
-* **Perintah Verifikasi:** `npm test -- --run` dan `compile_applet`
+* **Task:** -
+* **Langkah Sedang Dikerjakan:** -
+* **Berkas Direncanakan/Disentuh:** -
+* **Sudah Dilakukan:** -
+* **Langkah Berikutnya (persis):** -
+* **Perintah Verifikasi:** -
 * **Diperbarui:** 2026-10-29 jam: ?
 
 ---
@@ -92,42 +92,25 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 | `TASK-REV-06` | Level M | Kesiapan PWA Android WebAPK, Ikon PNG & Tautan Live HTTPS | DONE (disetujui pengguna) |
 | `TASK-REV-07` | Level M | Pembersihan Antarmuka Studio Menjadi PWA Siap Pakai & Eliminasi Elemen ZLCE | DONE (disetujui pengguna) |
 | `TASK-REV-08` | Level M | Integrasi Google Sheets API Langsung via OAuth & Drive Picker | DONE (disetujui pengguna) |
-| `TASK-REV-09` | Level M | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | IN_PROGRESS (verifikasi lolos, menunggu persetujuan DONE) |
+| `TASK-REV-09` | Level M | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | DONE (disetujui pengguna) |
 
 ---
 
 ## 6. CATATAN SERAH TERIMA (ditimpa; maks. ~10 baris)
 
-* [2026-10-29 jam: ?] TASK-REV-09 selesai diimplementasikan & diverifikasi penuh: Metode Alternatif Google Apps Script Web App telah aktif digunakan.
-* [2026-10-29 jam: ?] Bilah selektor metode sinkronisasi cloud terpasang di atas tab Cadangan & Google Sheet dengan opsi Apps Script Web App vs OAuth Direct.
-* [2026-10-29 jam: ?] Kartu Google Apps Script Web App ditandai dengan badge berdenyut "Metode Aktif Digunakan" dan aksen border emerald.
-* [2026-10-29 jam: ?] Tombol aksi utama "Cadangkan ke Google Sheets (via Apps Script)" dan "Pulihkan dari Google Sheets (via Apps Script)" telah aktif dan siap dipakai.
-* [2026-10-29 jam: ?] Preferensi metode sinkronisasi tersimpan di database lokal IndexedDB `Settings.activeSyncMethod`.
-* [2026-10-29 jam: ?] 74/74 unit tests di 17 berkas test lulus 100%, tsc --noEmit 0 error, build & compile_applet exit 0.
+* [2026-10-29 jam: ?] TASK-REV-09 resmi disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-09"). WAL dikosongkan.
+* [2026-10-29 jam: ?] Metode Alternatif Google Apps Script Web App aktif digunakan dengan bilah selektor cloud dan badge berdenyut "Metode Aktif Digunakan".
+* [2026-10-29 jam: ?] Fitur "Simpan Pengaturan" terverifikasi menyimpan konfigurasi endpoint, kunci rahasia, spreadsheet ID, dan preferensi metode ke IndexedDB lokal dengan normalisasi URL otomatis (menghapus trailing slash & menambahkan /exec bila diperlukan).
+* [2026-10-29 jam: ?] Fitur "Uji Koneksi (Test Probe)" terverifikasi mengirim POST CORS-safe text/plain ke endpoint, menghitung latensi (ms), memvalidasi respon JSON, dan menampilkan kartu status hasil uji probe serta rincian tab spreadsheet.
+* [2026-10-29 jam: ?] Perlindungan offline terintegrasi: jika perangkat offline, uji koneksi memberikan pesan peringatan langsung tanpa jeda timeout.
+* [2026-10-29 jam: ?] Tombol aksi utama "Cadangkan ke Google Sheets (via Apps Script)" dan "Pulihkan dari Google Sheets (via Apps Script)" aktif dan siap pakai.
+* [2026-10-29 jam: ?] Seluruh 74 unit tests di 17 berkas test lulus 100%, tsc --noEmit 0 error, build & compile_applet exit 0.
 
 ---
 
 ## 7. LOG AUDIT (terbaru di atas; arsipkan entri lama ke `docs/archive/`)
 
-* [2026-10-29 jam: ?] TASK-REV-09 implementasi & verifikasi selesai (74/74 tests pass di 17 files, tsc 0 error, build exit 0). Metode Google Apps Script Web App aktif digunakan dengan selektor metode, badge visual aktif, dan tombol cadangkan & pulihkan mandiri. Menunggu persetujuan DONE pengguna.
-
----
-
-## 6. CATATAN SERAH TERIMA (ditimpa; maks. ~10 baris)
-
-* [2026-10-29 jam: ?] TASK-REV-07 & TASK-REV-08 tuntas penuh: PWA 100% siap pakai dengan integrasi Google Sheets langsung via OAuth resmi.
-* [2026-10-29 jam: ?] UI bersih tanpa tab ZLCE internal; modul navigasi rapi (Dashboard, Sesi, Riwayat, Cadangan & Google Sheet, Akun, Layanan).
-* [2026-10-29 jam: ?] Integrasi Google Sheets API v4 langsung aktif: login pop-up Google resmi, token access in-memory aman (tanpa storage).
-* [2026-10-29 jam: ?] Fitur Buat Spreadsheet 1-Klik otomatis membuat 6 tab terstruktur dan terformat rapi di Google Drive pengguna.
-* [2026-10-29 jam: ?] Penjelajah berkas Drive terpasang untuk memilih Spreadsheet cadangan secara instan.
-* [2026-10-29 jam: ?] Sinkronisasi cadangan & pemulihan langsung dengan proteksi snapshot pra-restore fail-closed.
-* [2026-10-29 jam: ?] Seluruh 74 unit test di 17 berkas test lulus 100% (vitest pass), tsc --noEmit 0 error, build & compile_applet exit 0.
-
----
-
-## 7. LOG AUDIT (terbaru di atas; arsipkan entri lama ke `docs/archive/`)
-
-* [2026-10-29 jam: ?] TASK-REV-08 DONE. Integrasi Google Sheets API v4 langsung via OAuth & Google Drive file browser selesai. 74/74 unit tests lulus (17 files), tsc 0 error, compile_applet exit 0. WAL dikosongkan.
+* [2026-10-29 jam: ?] TASK-REV-09 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-09"). WAL dikosongkan. Fitur "Simpan Pengaturan" dan "Uji Koneksi (Test Probe)" pada Metode Alternatif Google Apps Script Web App diuji dan diverifikasi penuh di lingkungan PWA. Normalisasi URL otomatis, deteksi offline, dan kartu visual status probe telah disematkan. (74/74 unit tests lulus di 17 files, tsc 0 error, build exit 0).
 * [2026-10-29 jam: ?] TASK-REV-07 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-07"). Antarmuka studio dibersihkan penuh dari elemen ZLCE. PWA siap pakai.
 * [2026-10-29T09:05:00-07:00] TASK-REV-06 DONE. Menambahkan tautan live HTTPS resmi, QR code generator preview, panduan in-app browser WebView di TUTORIAL_INSTALL_PWA_ANDROID.md dan PwaInstallGuideModal.tsx. 70/70 tests pass di 16 test files. Build sukses.
 * [2026-10-29T08:50:00-07:00] TASK-REV-05 DONE. Menambahkan filter cepat status 'READY' di tab Dashboard (App.tsx) dengan count real-time dan switch toggle interaktif.

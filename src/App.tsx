@@ -110,6 +110,7 @@ import {
 import { 
   probeAppsScript, 
   initSheetTables,
+  normalizeEndpointUrl,
   backupToSheet, 
   restoreFromSheet, 
   type ProbeResult 
@@ -718,9 +719,19 @@ export default function App() {
 
   const handleSaveSettings = async () => {
     try {
+      const endpoint = sheetEndpointInput.trim();
+      let normalizedEndpoint = endpoint;
+      if (endpoint) {
+        const norm = normalizeEndpointUrl(endpoint);
+        if (norm.valid) {
+          normalizedEndpoint = norm.url;
+          setSheetEndpointInput(norm.url);
+        }
+      }
+
       const updated: Settings = {
         ...settings,
-        sheetEndpoint: sheetEndpointInput.trim(),
+        sheetEndpoint: normalizedEndpoint,
         sheetSecret: sheetSecretInput.trim(),
         googleSpreadsheetId: sheetSpreadsheetIdInput.trim() || undefined,
         activeSyncMethod,
@@ -728,13 +739,17 @@ export default function App() {
       };
       await saveSettings(updated);
       setAppSettings(updated);
-      setBackupNotice('Konfigurasi Google Apps Script & Spreadsheet ID berhasil disimpan secara lokal.');
+      setBackupNotice('Konfigurasi Google Apps Script & Spreadsheet ID berhasil disimpan secara lokal di IndexedDB.');
     } catch (err: unknown) {
       if (err instanceof Error) setBackupError(err.message);
     }
   };
 
   const handleProbeAppsScript = async () => {
+    if (!isOnline) {
+      setBackupError('Perangkat sedang offline (mode pesawat). Pengujian koneksi ke Google Apps Script membutuhkan jaringan internet aktif.');
+      return;
+    }
     setProbeResult(null);
     setBackupNotice(null);
     setBackupError(null);
@@ -2579,6 +2594,51 @@ export default function App() {
                       <ExternalLink className="w-3.5 h-3.5" />
                       Buka Google Sheets Langsung
                     </a>
+                  </div>
+                )}
+
+                {/* Kartu Status Hasil Uji Koneksi (Test Probe) */}
+                {probeResult && (
+                  <div className={`p-4 rounded-xl border text-xs space-y-2.5 animate-in fade-in ${
+                    probeResult.success
+                      ? 'bg-slate-950/90 border-emerald-800/80 text-slate-200'
+                      : 'bg-rose-950/40 border-rose-800/80 text-rose-200'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {probeResult.success ? (
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                        )}
+                        <span className="font-bold text-sm">
+                          {probeResult.success ? 'Uji Koneksi Berhasil!' : 'Uji Koneksi Gagal'}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[11px] px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-semibold">
+                        Latensi: {probeResult.latencyMs} ms
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-300 leading-relaxed">{probeResult.message}</p>
+
+                    {probeResult.tabs && probeResult.tabs.length > 0 && (
+                      <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                        <span className="text-[11px] font-semibold text-slate-400 block">
+                          Tab Terdeteksi di Spreadsheet ({probeResult.tabs.length} tab):
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {probeResult.tabs.map((tab, idx) => (
+                            <span
+                              key={idx}
+                              className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-emerald-400"
+                            >
+                              {tab.name}: {tab.rowCount} baris
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
