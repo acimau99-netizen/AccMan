@@ -21,6 +21,7 @@ import {
   importLocalJsonData,
   validateImportPayload,
 } from '../src/backup/json-backup';
+import { ATTACHED_BACKUP_20261030 } from '../src/storage/initial-backup';
 
 describe('backup-json.test', () => {
   let dbCounter = 0;
@@ -475,5 +476,34 @@ describe('backup-json.test', () => {
     await expect(importLocalJsonData(orphanHandoff, db)).rejects.toThrow(
       /Integritas relasional rusak: HandoffNote "h1" merujuk serviceId "s-UNKNOWN"/
     );
+  });
+
+  it('import_preloaded_backup_20261030_success - Memulihkan dataset cadangan terlampir lengkap 86 entitas (TASK-REV-10)', async () => {
+    const db = await getDatabase(getTestDbName());
+    const res = await importLocalJsonData(JSON.stringify(ATTACHED_BACKUP_20261030), db);
+
+    expect(res.success).toBe(true);
+    expect(res.importedCount).toBe(86);
+
+    const persons = await getAllPersons(db);
+    expect(persons).toHaveLength(9);
+    expect(persons.map((p) => p.ownerName)).toContain('Eko Keplek');
+    expect(persons.map((p) => p.ownerName)).toContain('Kepek Malang');
+    expect(persons.map((p) => p.ownerName)).toContain('Sulistiyani');
+
+    const services = await getAllServices(db);
+    expect(services).toHaveLength(6);
+    expect(services.map((s) => s.id)).toContain('srv-aistudio');
+    expect(services.map((s) => s.id)).toContain('srv-x');
+    expect(services.map((s) => s.id)).toContain('srv-freebuff');
+
+    const access = await getAllAccess(db);
+    expect(access).toHaveLength(23);
+
+    const logs = await getAllLogs(db);
+    expect(logs).toHaveLength(35);
+
+    const handoffNotes = await db.getAll('handoffNotes');
+    expect(handoffNotes).toHaveLength(13);
   });
 });

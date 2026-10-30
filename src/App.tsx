@@ -125,6 +125,7 @@ import {
   subscribeInstallPrompt,
 } from './pwa/register-sw';
 import { APPS_SCRIPT_CODE_GS } from './backup/apps-script-code';
+import { ATTACHED_BACKUP_20261030 } from './storage/initial-backup';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { PwaInstallGuideModal } from './components/PwaInstallGuideModal';
 import { Copy, Code, Check } from 'lucide-react';
@@ -245,6 +246,18 @@ export default function App() {
 
   const loadAllData = async () => {
     try {
+      // Auto-restore dataset cadangan terlampir jika persons masih kosong atau belum di-seed (TASK-REV-10)
+      const hasSeeded = localStorage.getItem('ai_account_manager_seeded_backup') === '2026-10-30';
+      const initialPersons = await getAllPersons();
+      if (!hasSeeded || initialPersons.length === 0) {
+        try {
+          await importLocalJsonData(JSON.stringify(ATTACHED_BACKUP_20261030));
+          localStorage.setItem('ai_account_manager_seeded_backup', '2026-10-30');
+        } catch (seedErr) {
+          console.warn('Gagal memulihkan dataset cadangan terlampir:', seedErr);
+        }
+      }
+
       const [allPersons, allServices, allAccess, dbSettings] = await Promise.all([
         getAllPersons(),
         getAllServices(),
@@ -524,6 +537,36 @@ export default function App() {
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleRestoreAttachedBackup = async () => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Konfirmasi Pemulihan Dataset Cadangan Terlampir (30 Okt 2026)',
+      description: 'Memulihkan dataset cadangan terlampir (ai-account-manager-backup-2026-10-30.json) akan menimpa data akun, layanan, hak akses, log, dan catatan lanjutan di IndexedDB lokal. Salinan pengaman lokal otomatis akan dibuat sebelum penimpaan (Fail-Closed).',
+      details: [
+        { label: 'Layanan AI', value: ATTACHED_BACKUP_20261030.data.services.length },
+        { label: 'Akun Pengguna', value: ATTACHED_BACKUP_20261030.data.persons.length },
+        { label: 'Akses Layanan', value: ATTACHED_BACKUP_20261030.data.access.length },
+        { label: 'Log Riwayat', value: ATTACHED_BACKUP_20261030.data.logs.length },
+        { label: 'Catatan Lanjutan', value: ATTACHED_BACKUP_20261030.data.handoffNotes.length },
+        { label: 'Total Entitas', value: 86 },
+      ],
+      confirmLabel: 'Ya, Pulihkan Dataset Sekarang',
+      confirmVariant: 'danger',
+      action: async () => {
+        try {
+          const res = await importLocalJsonData(JSON.stringify(ATTACHED_BACKUP_20261030));
+          localStorage.setItem('ai_account_manager_seeded_backup', '2026-10-30');
+          await loadAllData();
+          setBackupNotice(`Dataset cadangan terlampir berhasil dipulihkan! Total ${res.importedCount} entitas dimuat ke tabel.`);
+        } catch (err: unknown) {
+          if (err instanceof Error) setBackupError(err.message);
+        } finally {
+          setConfirmModalConfig(null);
+        }
+      },
+    });
   };
 
   // Google Workspace Direct Auth & Sheets API Actions
@@ -2772,6 +2815,31 @@ export default function App() {
                     Unduh Salinan Pengaman Pre-Restore
                   </button>
                 )}
+              </div>
+
+              {/* KARTU RESTORE DATASET CADANGAN TERLAMPIR (TASK-REV-10) */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-indigo-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span className="font-bold text-white text-xs">Dataset Cadangan Terlampir (30 Okt 2026)</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800">
+                      86 Entitas Terverifikasi
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Memuat 6 Layanan AI, 9 Akun Google Pengguna, 23 Hak Akses Layanan, 35 Log Riwayat Pemakaian, dan 13 Catatan Lanjutan Tim.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRestoreAttachedBackup}
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 shrink-0 transition cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Pulihkan Dataset Terlampir</span>
+                </button>
               </div>
             </div>
 

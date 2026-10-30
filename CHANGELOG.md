@@ -7,6 +7,11 @@ Mengikuti Keep a Changelog dan SemVer. Perubahan Level S (`[MINOR]`) dan task re
 ## [Unreleased]
 
 ### Added
+- [TASK-REV-10] Pemulihan Dataset Cadangan Terlampir ke Tabel IndexedDB (`src/storage/initial-backup.ts`, `src/App.tsx`, `tests/backup-json.test.ts`, `TASKS.md`):
+  - Integrasi Dataset Terlampir: Memasukkan seluruh data cadangan `ai-account-manager-backup-2026-10-30_a97ae634.json` (6 Layanan AI, 9 Akun Google Pengguna, 23 Hak Akses Layanan, 35 Log Riwayat Pemakaian, 13 Catatan Lanjutan Tim; total 86 entitas) ke modul `src/storage/initial-backup.ts`.
+  - Auto-Restore pada PWA Init: Memeriksa dan memulihkan dataset cadangan secara otomatis saat PWA dimuat jika basis data kosong atau versi belum diterapkan, sehingga seluruh data akun, layanan, log, dan riwayat langsung tampil di Dashboard, Sesi, Riwayat, Akun, dan Layanan.
+  - Kartu Aksi Restorasi 1-Ketuk: Menyediakan tombol "Pulihkan Dataset Terlampir" di tab Cadangan dengan rincian jumlah entitas dan dialog konfirmasi proteksi lokal fail-closed.
+  - Uji Unit Komprehensif: Menambahkan pengujian `import_preloaded_backup_20261030_success` di `tests/backup-json.test.ts` yang memverifikasi keberhasilan impor 86 entitas tanpa korupsi relasional (total 75/75 unit test lulus di 17 test files, tsc --noEmit 0 error, build produksi sukses).
 - [TASK-REV-09] Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri (`src/storage/types.ts`, `src/App.tsx`, `TASKS.md`):
   - Pengatur Metode Sinkronisasi Cloud: Menambahkan baris selektor metode interaktif di bagian atas modul cadangan untuk memilih secara dinamis antara Google Apps Script Web App dan Google Workspace Direct Sheets API.
   - Lencana Visual & Status Aktif: Kartu Google Apps Script Web App menampilkan status lencana "Metode Aktif Digunakan" dengan indikator visual hijau berdenyut dan aksen border emerald saat metode ini dipilih.

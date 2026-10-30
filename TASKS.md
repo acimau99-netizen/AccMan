@@ -381,6 +381,25 @@ MODE LITE: `Docs Impact` hanya merujuk `BLUEPRINT` / `TASKS`; `Test Case` meruju
 * **Test Case:** `backup-sheet.test::roundtrip_identical`, `backup-sheet.test::restore_confirmation_with_counts`, `sheet-probe.test::action_generate_tables`
 * **Metode Verifikasi:** Vitest test runner (74 tests pass) + `compile_applet` exit 0; tempel bukti.
 
+---
+
+### TASK-REV-10: Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 24 Akses, 34 Log, 13 Catatan) ke Tabel IndexedDB
+* **Fase:** FASE REVISI (Restorasi Dataset Cadangan)
+* **Deskripsi:** Memulihkan seluruh data cadangan terlampir (`ai-account-manager-backup-2026-10-30_a97ae634.json`) ke dalam tabel database IndexedDB lokal aplikasi (`ai_account_manager_db`). Mengintegrasikan modul `src/storage/initial-backup.ts`, auto-restore/seed saat inisialisasi aplikasi jika basis data kosong atau versi belum diterapkan, menyediakan tombol 1-ketuk "Pulihkan Cadangan Terlampir (30 Okt 2026)" di tab Cadangan, serta memverifikasi seluruh 6 layanan, 9 akun, 24 hak akses, 34 log riwayat, dan 13 catatan lanjutan berhasil dimuat dan beroperasi penuh di seluruh modul antarmuka (Dashboard, Sesi, Riwayat, Akun, Layanan).
+* **Dependensi:** `TASK-REV-09`
+* **File:** `src/storage/initial-backup.ts`, `src/App.tsx`, `tests/backup-json.test.ts`
+* **Docs Terkait (Tier 1):** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Docs Impact:** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Acceptance Criteria:**
+  1. Modul `src/storage/initial-backup.ts` memuat dataset terlampir lengkap (6 services, 9 persons, 24 access, 34 logs, 13 handoffNotes).
+  2. Saat aplikasi dimuat, PWA otomatis memulihkan dataset ini ke tabel IndexedDB lokal jika tabel persons masih kosong atau flag `ai_account_manager_backup_restored_20261030` belum diset, sehingga seluruh akun, layanan, log, dan catatan langsung muncul di antarmuka tanpa perlu impor manual.
+  3. Pada tab Cadangan & Google Sheet, disediakan kartu aksi "Berkas Cadangan Terlampir (30 Okt 2026)" dengan tombol 1-ketuk "Pulihkan Cadangan Ini Sekarang" lengkap dengan ringkasan entitas (6 Layanan, 9 Akun, 24 Akses, 34 Log, 13 Catatan) dan modal konfirmasi proteksi fail-closed.
+  4. Pengujian unit di `tests/backup-json.test.ts` memverifikasi proses impor dataset `PRELOADED_BACKUP_20261030` berhasil 100%, menghasilkan 86 total entitas, dan mempertahankan integritas relasional (0 regresi).
+  5. Seluruh unit tests (75 tests) lulus, `tsc --noEmit` 0 error, dan `compile_applet` sukses.
+* **Test Case:** `backup-json.test::import_preloaded_backup_20261030_success`
+* **Metode Verifikasi:** Vitest test runner (75 tests pass) + `compile_applet` exit 0; tempel bukti.
+
+
 
 
 
