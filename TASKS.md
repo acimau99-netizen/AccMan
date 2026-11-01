@@ -422,6 +422,33 @@ MODE LITE: `Docs Impact` hanya merujuk `BLUEPRINT` / `TASKS`; `Test Case` meruju
 * **Test Case:** `tests/dashboard.test.ts`, `tests/session.test.ts`, `tests/history.test.ts`
 * **Metode Verifikasi:** Vitest test runner + `compile_applet` exit 0; tempel bukti.
 
+---
+
+### TASK-REV-12: Panel Edit Manual Status Akses (Login, Logout, Limit) per Servis & ID Akun serta Refaktor Aksi Stop Menjadi Logout
+* **Fase:** FASE REVISI (Manual Status Overrides & Session Logout Terminology)
+* **Deskripsi:** Membangun panel modal komprehensif dan matriks tabel untuk mengedit secara manual status tiap servis dan tiap ID akun (kondisi: login, logout, limit), menyediakan pemilihan cepat servis dan ID akun dengan indikator status saat ini, kalkulator preset waktu reset limit instan (+1h, +2h, +3h, +4h, +8h, Pasifik 00:00), serta merefaktor terminologi aksi penghentian sesi dari "Stop" menjadi "Logout" di seluruh komponen antarmuka pengguna sesuai instruksi "(stop diganti ini saja)".
+* **Dependensi:** `TASK-REV-11`
+* **File:** `src/session/session-manager.ts`, `src/App.tsx`, `tests/session.test.ts`, `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Docs Terkait (Tier 1):** `BLUEPRINT.md`, `TASKS.md`, `SESSION_STATE.md`
+* **Docs Impact:** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Acceptance Criteria:**
+  1. Fungsi `manualSetAccessStatus`: Modul `session-manager.ts` menyediakan fungsi `manualSetAccessStatus(accessId, targetState, options)` yang mendukung 3 kondisi:
+     a. `'login'`: mengaktifkan sesi login (`activeSessionStart = now`, `status = 'ready'`, bersihkan limit), dan mencatat log riwayat `opened`.
+     b. `'logout'`: mengakhiri sesi aktif (menghitung `durationSec` jika ada `activeSessionStart`), menyetel `status = 'ready'`, membersihkan `activeSessionStart`, `limitedAt`, dan `resetAt`, serta mencatat log riwayat `stop` berlabel "Logout".
+     c. `'limit'`: menetapkan `status = 'limited'`, menyimpan `resetAt` valid, membersihkan `activeSessionStart`, dan mencatat log riwayat `limit_hit`.
+  2. Refaktor Terminologi Stop -> Logout: Seluruh tombol, label, dan ikon penghentian sesi di Dashboard, Header Ticker, dan tab Sesi Pemakaian diganti dari "Stop" / "Stop Sesi" menjadi "Logout" / "Logout Sesi" dengan ikon `LogOut`.
+  3. Panel Edit Manual Status Interaktif: Disediakan tombol akses global "Edit Status Manual" (`SlidersHorizontal`) di Dashboard dan tombol per akun di kartu layanan yang membuka modal konfigurasi status manual per servis dan per ID akun. Modal menyediakan:
+     - Tampilan informasi ID akses, ID akun (`personId`), nama pemilik, email, dan ID servis (`serviceId`).
+     - Pemilih kondisi status (Radio / Tab Card): LOGIN, LOGOUT, dan LIMIT.
+     - Bila LIMIT dipilih: kontrol preset durasi instan (+1h, +2h, +3h, +4h, +8h, Pasifik 00:00) dan input datetime kustom.
+     - Bila LOGIN dipilih: opsi pencatatan detail login.
+     - Bila LOGOUT dipilih: konfirmasi pengembalian ke status siap pakai (ready).
+  4. Matriks Tinjau & Edit Cepat Tiap Servis Tiap ID: Di dalam modal, disediakan tab "Matriks Seluruh ID" yang menampilkan baris seluruh ID akun untuk tiap servis AI beserta tombol aksi 1-ketuk langsung (Login, Logout, Limit) untuk mempercepat pergantian status massal tanpa buka-tutup form.
+  5. Pengujian & Verifikasi: Unit test baru untuk `manualSetAccessStatus` di `tests/session.test.ts` lulus 100%, seluruh test suite (75+ tests) pass, `tsc --noEmit` 0 error, dan `compile_applet` sukses.
+* **Test Case:** `tests/session.test.ts::manual_status_override_login_logout_limit`
+* **Metode Verifikasi:** Vitest test runner + `tsc --noEmit` + `compile_applet` exit 0; tempel bukti.
+
+
 
 
 

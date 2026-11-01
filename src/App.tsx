@@ -87,8 +87,11 @@ import {
   stopSession, 
   hitLimitSession, 
   editLimitResetAt, 
-  processAutoReadyCheck 
+  processAutoReadyCheck,
+  manualSetAccessStatus,
+  type ManualStatusTarget,
 } from './session/session-manager';
+import { computeResetAt } from './domain/reset-rule';
 import { 
   getReadyCountSinceLastOpen, 
   getNextReadyAccountSuggestion 
@@ -140,6 +143,16 @@ export default function App() {
   const [historySearchQuery, setHistorySearchQuery] = useState<string>('');
   const [sessionServiceFilter, setSessionServiceFilter] = useState<string>('ALL');
   const [dashboardFocusedService, setDashboardFocusedService] = useState<string | null>(null);
+
+  // State Panel Edit Status Manual (TASK-REV-12)
+  const [showManualStatusModal, setShowManualStatusModal] = useState(false);
+  const [manualStatusViewTab, setManualStatusViewTab] = useState<'form' | 'matrix'>('form');
+  const [manualTargetAccessId, setManualTargetAccessId] = useState<string>('');
+  const [manualTargetStatus, setManualTargetStatus] = useState<ManualStatusTarget>('logout');
+  const [manualResetDate, setManualResetDate] = useState<string>('');
+  const [manualStatusNote, setManualStatusNote] = useState<string>('');
+  const [isApplyingManualStatus, setIsApplyingManualStatus] = useState(false);
+  const [matrixFilterServiceId, setMatrixFilterServiceId] = useState<string>('ALL');
 
   // State Google Workspace Auth & Direct Google Sheets API
   const [googleUser, setGoogleUser] = useState<User | null>(null);
@@ -415,10 +428,124 @@ export default function App() {
     try {
       const res = await stopSession(accessId, { now: new Date() });
       const durationText = res.durationSec !== undefined ? `${res.durationSec} detik` : 'tanpa durasi';
-      setSessionNotice(`Sesi dihentikan (Stop). Durasi: ${durationText}. Status tetap READY.`);
+      setSessionNotice(`Sesi diakhiri (Logout). Durasi: ${durationText}. Status akun kini READY (Siap Pakai).`);
       await loadAllData();
     } catch (err: unknown) {
       if (err instanceof Error) setSessionError(err.message);
+    }
+  };
+
+  // Handlers Panel Edit Status Manual (TASK-REV-12)
+  const handleOpenManualStatusModal = (accessId?: string) => {
+    setSessionError(null);
+    setSessionNotice(null);
+    let chosenId = accessId;
+    if (!chosenId) {
+      if (selectedAccessId) {
+        chosenId = selectedAccessId;
+      } else if (accessList.length > 0) {
+        chosenId = accessList[0].id;
+      }
+    }
+    if (chosenId) {
+      setManualTargetAccessId(chosenId);
+      const acc = accessList.find((a) => a.id === chosenId);
+      if (acc) {
+        if (acc.status === 'limited') {
+          setManualTargetStatus('limit');
+          if (acc.resetAt) {
+            const d = new Date(acc.resetAt);
+            setManualResetDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+          } else {
+            setManualResetDate('');
+          }
+        } else if (acc.activeSessionStart) {
+          setManualTargetStatus('login');
+          setManualResetDate('');
+        } else {
+          setManualTargetStatus('logout');
+          setManualResetDate('');
+        }
+      }
+    }
+    setManualStatusNote('');
+    setShowManualStatusModal(true);
+  };
+
+  const applyPresetManualLimitDuration = (hoursOffset: number | 'pacific_midnight') => {
+    const now = new Date();
+    let target: Date;
+    if (hoursOffset === 'pacific_midnight') {
+      const pacificDateStr = now.toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' });
+      const pacificTomorrow = new Date(pacificDateStr);
+      pacificTomorrow.setDate(pacificTomorrow.getDate() + 1);
+      target = new Date(pacificTomorrow.getTime() + (7 * 3600 * 1000));
+    } else {
+      target = new Date(now.getTime() + hoursOffset * 3600 * 1000);
+    }
+    const year = target.getFullYear();
+    const month = String(target.getMonth() + 1).padStart(2, '0');
+    const day = String(target.getDate()).padStart(2, '0');
+    const hours = String(target.getHours()).padStart(2, '0');
+    const mins = String(target.getMinutes()).padStart(2, '0');
+    setManualResetDate(`${year}-${month}-${day}T${hours}:${mins}`);
+  };
+
+  const handleApplyManualStatus = async (
+    customAccessId?: string,
+    customTarget?: ManualStatusTarget,
+    customResetAt?: Date
+  ) => {
+    const targetId = customAccessId || manualTargetAccessId;
+    const targetState = customTarget || manualTargetStatus;
+    if (!targetId) return;
+
+    setIsApplyingManualStatus(true);
+    setSessionError(null);
+    setSessionNotice(null);
+
+    try {
+      let resetAtDate: Date | undefined = customResetAt;
+      if (targetState === 'limit' && !resetAtDate) {
+        if (manualResetDate) {
+          resetAtDate = new Date(manualResetDate);
+        } else {
+          const acc = accessList.find((a) => a.id === targetId);
+          const srv = services.find((s) => s.id === acc?.serviceId);
+          if (srv) {
+            resetAtDate = computeResetAt(srv.resetRule, new Date());
+          } else {
+            resetAtDate = new Date(Date.now() + 3 * 3600 * 1000);
+          }
+        }
+      }
+
+      const res = await manualSetAccessStatus(targetId, targetState, {
+        resetAt: resetAtDate,
+        note: manualStatusNote.trim() || undefined,
+        now: new Date(),
+      });
+
+      const acc = res.access;
+      const person = persons.find((p) => p.id === acc.personId);
+      const srv = services.find((s) => s.id === acc.serviceId);
+      const name = person ? person.ownerName : 'Akun';
+      const srvName = srv ? srv.name : 'Layanan';
+
+      setSessionNotice(
+        `Status manual berhasil diperbarui! ${name} pada ${srvName} kini berstatus: ${res.newStatus}.`
+      );
+
+      if (!customAccessId) {
+        setShowManualStatusModal(false);
+      }
+      await loadAllData();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setSessionError(err.message);
+      }
+    } finally {
+      setIsApplyingManualStatus(false);
     }
   };
 
@@ -1259,20 +1386,31 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {/* Live Active Session Stopwatch (BR-03, TASK-REV-11) */}
+            {/* Live Active Session Stopwatch & Quick Logout (BR-03, TASK-REV-11, TASK-REV-12) */}
             {activeRunningAccess && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedAccessId(activeRunningAccess.id);
-                  setActiveTab('sessions');
-                }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-sky-950 text-sky-300 border border-sky-700 animate-pulse transition hover:bg-sky-900 active:scale-[0.98]"
-                title="Sesi berjalan - Klik untuk buka kontrol sesi"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                <span>{activeRunningService?.name || 'Sesi'}: {formatStopwatch(activeElapsedSec)}</span>
-              </button>
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAccessId(activeRunningAccess.id);
+                    setActiveTab('sessions');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-sky-950 text-sky-300 border border-sky-700 animate-pulse transition hover:bg-sky-900 active:scale-[0.98]"
+                  title="Sesi berjalan - Klik untuk buka kontrol sesi"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>{activeRunningService?.name || 'Sesi'}: {formatStopwatch(activeElapsedSec)}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStopSessionById(activeRunningAccess.id)}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-mono font-bold bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 transition active:scale-[0.98]"
+                  title="Logout Sesi Ini Langsung (stop diganti ini saja)"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span className="hidden sm:inline">Logout</span>
+                </button>
+              </div>
             )}
 
             {/* Quick Status Count Badge */}
@@ -1288,6 +1426,17 @@ export default function App() {
               <span className="text-emerald-400 font-bold">{totalReadyAccounts}</span>
               <span className="text-slate-500">/</span>
               <span>{accessList.length} READY</span>
+            </button>
+
+            {/* Tombol Pintas Panel Edit Status Manual (TASK-REV-12) */}
+            <button
+              type="button"
+              onClick={() => handleOpenManualStatusModal()}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 transition active:scale-[0.98]"
+              title="Buka Panel Edit Manual Status Tiap Servis & ID (Login • Logout • Limit)"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Status Manual</span>
             </button>
 
             {/* Active Sync Method Chip */}
@@ -1588,16 +1737,28 @@ export default function App() {
                     </div>
                   </div>
 
-                  {dashboardFocusedService && (
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => setDashboardFocusedService(null)}
-                      className="text-xs px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 flex items-center gap-1.5 w-fit active:scale-[0.98]"
+                      onClick={() => handleOpenManualStatusModal()}
+                      className="text-xs px-2.5 py-1 rounded-md bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 flex items-center gap-1.5 w-fit active:scale-[0.98] font-semibold"
+                      title="Buka Panel Edit Manual Status Tiap Servis & ID (Login • Logout • Limit)"
                     >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>Tampilkan Semua Layanan</span>
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Panel Status Manual</span>
                     </button>
-                  )}
+
+                    {dashboardFocusedService && (
+                      <button
+                        type="button"
+                        onClick={() => setDashboardFocusedService(null)}
+                        className="text-xs px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 flex items-center gap-1.5 w-fit active:scale-[0.98]"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Tampilkan Semua Layanan</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1853,10 +2014,18 @@ export default function App() {
 
                                   <button
                                     onClick={() => handleStopSessionById(acc.id)}
-                                    title="Stop Sesi (Hitung durasi & tetap ready)"
-                                    className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-[0.98]"
+                                    title="Logout Sesi (Akhiri sesi & siap pakai - stop diganti ini)"
+                                    className="p-2 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 border border-slate-700 transition active:scale-[0.98]"
                                   >
-                                    <Square className="w-3.5 h-3.5" />
+                                    <LogOut className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleOpenManualStatusModal(acc.id)}
+                                    title="Edit Manual Status Akun Ini (Login • Logout • Limit)"
+                                    className="p-2 rounded-lg bg-slate-800 hover:bg-amber-950 text-slate-300 hover:text-amber-300 border border-slate-700 transition active:scale-[0.98]"
+                                  >
+                                    <SlidersHorizontal className="w-3.5 h-3.5" />
                                   </button>
 
                                   <button
@@ -2113,11 +2282,11 @@ export default function App() {
                       className={`p-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition active:scale-[0.98] ${
                         !currentAccess || currentAccess.status === 'limited'
                           ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                          : 'bg-rose-950/60 hover:bg-rose-900/80 text-rose-200 border border-rose-800'
                       }`}
                     >
-                      <Square className="w-4 h-4" />
-                      2. Tombol Stop (Tetap Ready)
+                      <LogOut className="w-4 h-4" />
+                      2. Tombol Logout (Selesai Sesi / Siap Pakai)
                     </button>
                   </div>
 
@@ -2144,6 +2313,18 @@ export default function App() {
                         Edit reset aktif saat status LIMITED
                       </div>
                     )}
+                  </div>
+
+                  {/* Tombol Akses Panel Edit Status Manual (TASK-REV-12) */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenManualStatusModal(selectedAccessId || undefined)}
+                      className="w-full p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-800/60 text-amber-300 font-semibold flex items-center justify-center gap-2 transition active:scale-[0.98] text-xs shadow-md"
+                    >
+                      <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+                      <span>Panel Edit Manual Status (Login • Logout • Limit) per Servis & ID</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -3968,6 +4149,482 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Modal Panel Edit Status Manual (TASK-REV-12) */}
+      {showManualStatusModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-slate-900 border border-amber-700/80 rounded-2xl max-w-2xl w-full p-5 sm:p-6 space-y-4 shadow-2xl my-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-400 shrink-0">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Panel Edit Manual Status Akses</h3>
+                  <p className="text-xs text-amber-300">
+                    Konfigurasi langsung kondisi <strong>LOGIN</strong>, <strong>LOGOUT</strong> (Siap Pakai), atau <strong>LIMIT</strong> per servis & ID
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowManualStatusModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Mode Selector Tab (Form Spesifik vs Matriks Seluruh ID) */}
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setManualStatusViewTab('form')}
+                className={`flex-1 py-1.5 rounded-lg transition active:scale-[0.98] ${
+                  manualStatusViewTab === 'form'
+                    ? 'bg-amber-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                1. Form Edit Status Spesifik
+              </button>
+              <button
+                type="button"
+                onClick={() => setManualStatusViewTab('matrix')}
+                className={`flex-1 py-1.5 rounded-lg transition active:scale-[0.98] ${
+                  manualStatusViewTab === 'matrix'
+                    ? 'bg-amber-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                2. Matriks Cepat Seluruh ID & Servis
+              </button>
+            </div>
+
+            {/* Content: TAB 1 (Form Edit Spesifik) */}
+            {manualStatusViewTab === 'form' && (
+              <div className="space-y-4">
+                {/* Selektor Akses (Servis & Akun) */}
+                <div>
+                  <label className="text-xs font-medium text-slate-300 block mb-1.5">
+                    Pilih Hak Akses Akun & Servis AI:
+                  </label>
+                  <select
+                    value={manualTargetAccessId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setManualTargetAccessId(id);
+                      const acc = accessList.find((a) => a.id === id);
+                      if (acc) {
+                        if (acc.status === 'limited') {
+                          setManualTargetStatus('limit');
+                          if (acc.resetAt) {
+                            const d = new Date(acc.resetAt);
+                            setManualResetDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+                          }
+                        } else if (acc.activeSessionStart) {
+                          setManualTargetStatus('login');
+                          setManualResetDate('');
+                        } else {
+                          setManualTargetStatus('logout');
+                          setManualResetDate('');
+                        }
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 font-mono"
+                  >
+                    {accessList.map((acc) => {
+                      const p = persons.find((per) => per.id === acc.personId);
+                      const s = services.find((ser) => ser.id === acc.serviceId);
+                      const stateLabel = acc.status === 'limited' 
+                        ? 'LIMIT' 
+                        : (acc.activeSessionStart ? 'LOGIN' : 'LOGOUT');
+                      return (
+                        <option key={acc.id} value={acc.id}>
+                          [{s?.name || acc.serviceId}] {p?.ownerName || acc.personId} ({p?.googleEmail}) — Status: {stateLabel}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Card Info Akses Terpilih */}
+                {(() => {
+                  const targetAcc = accessList.find((a) => a.id === manualTargetAccessId);
+                  const targetPerson = persons.find((p) => p.id === targetAcc?.personId);
+                  const targetService = services.find((s) => s.id === targetAcc?.serviceId);
+                  if (!targetAcc) return null;
+
+                  const currentCondition = targetAcc.status === 'limited' 
+                    ? 'LIMIT' 
+                    : (targetAcc.activeSessionStart ? 'LOGIN' : 'LOGOUT');
+
+                  return (
+                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-white text-sm">{targetService?.name}</span>
+                          <p className="text-slate-400 font-mono text-[11px]">
+                            {targetPerson?.ownerName} • {targetPerson?.googleEmail}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-bold uppercase border ${
+                            currentCondition === 'LOGIN'
+                              ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                              : currentCondition === 'LIMIT'
+                              ? 'bg-rose-950 text-rose-400 border-rose-800'
+                              : 'bg-slate-800 text-slate-300 border-slate-700'
+                          }`}>
+                            Status: {currentCondition}
+                          </span>
+                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            ID: {targetAcc.id}
+                          </p>
+                        </div>
+                      </div>
+
+                      {targetAcc.activeSessionStart && (
+                        <p className="text-[11px] text-sky-400 font-mono">
+                          ⏱ Sesi aktif sejak: {new Date(targetAcc.activeSessionStart).toLocaleTimeString()}
+                        </p>
+                      )}
+                      {targetAcc.status === 'limited' && targetAcc.resetAt && (
+                        <p className="text-[11px] text-rose-400 font-mono">
+                          ⏳ Reset pada: {new Date(targetAcc.resetAt).toLocaleString('id-ID')} ({getRemainingCountdown(targetAcc.resetAt, currentTime).formatted})
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 3 Kondisi Status Pilihan (Cards / Segmented) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300 block">
+                    Pilih Kondisi Status Baru:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* Option 1: LOGIN */}
+                    <button
+                      type="button"
+                      onClick={() => setManualTargetStatus('login')}
+                      className={`p-3 rounded-xl border text-left transition active:scale-[0.98] ${
+                        manualTargetStatus === 'login'
+                          ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200 shadow-lg shadow-emerald-950/40'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-xs uppercase flex items-center gap-1.5">
+                          <Play className="w-3.5 h-3.5 text-emerald-400" />
+                          LOGIN
+                        </span>
+                        {manualTargetStatus === 'login' && <Check className="w-4 h-4 text-emerald-400" />}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Tandai akun sedang digunakan / sesi aktif login berjalan.
+                      </p>
+                    </button>
+
+                    {/* Option 2: LOGOUT */}
+                    <button
+                      type="button"
+                      onClick={() => setManualTargetStatus('logout')}
+                      className={`p-3 rounded-xl border text-left transition active:scale-[0.98] ${
+                        manualTargetStatus === 'logout'
+                          ? 'bg-sky-950/80 border-sky-500 text-sky-200 shadow-lg shadow-sky-950/40'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-xs uppercase flex items-center gap-1.5">
+                          <LogOut className="w-3.5 h-3.5 text-sky-400" />
+                          LOGOUT
+                        </span>
+                        {manualTargetStatus === 'logout' && <Check className="w-4 h-4 text-sky-400" />}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Sesi selesai / logout. Status kembali READY (siap pakai).
+                      </p>
+                    </button>
+
+                    {/* Option 3: LIMIT */}
+                    <button
+                      type="button"
+                      onClick={() => setManualTargetStatus('limit')}
+                      className={`p-3 rounded-xl border text-left transition active:scale-[0.98] ${
+                        manualTargetStatus === 'limit'
+                          ? 'bg-amber-950/80 border-amber-500 text-amber-200 shadow-lg shadow-amber-950/40'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-xs uppercase flex items-center gap-1.5">
+                          <AlertOctagon className="w-3.5 h-3.5 text-amber-400" />
+                          LIMIT
+                        </span>
+                        {manualTargetStatus === 'limit' && <Check className="w-4 h-4 text-amber-400" />}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Kena limit kuota. Menghitung mundur reset sesuai waktu.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pengaturan Tambahan Saat LIMIT Dipilih */}
+                {manualTargetStatus === 'limit' && (
+                  <div className="p-3 bg-slate-950 rounded-xl border border-amber-900/60 space-y-2.5">
+                    <label className="text-[11px] font-semibold text-amber-300 block">
+                      Preset Durasi Cepat Reset:
+                    </label>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => applyPresetManualLimitDuration(1)}
+                        className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-mono font-semibold"
+                      >
+                        +1 Jam
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyPresetManualLimitDuration(2)}
+                        className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-mono font-semibold"
+                      >
+                        +2 Jam
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyPresetManualLimitDuration(3)}
+                        className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-mono font-semibold"
+                      >
+                        +3 Jam
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyPresetManualLimitDuration(4)}
+                        className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-mono font-semibold"
+                      >
+                        +4 Jam
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyPresetManualLimitDuration(8)}
+                        className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-mono font-semibold"
+                      >
+                        +8 Jam
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyPresetManualLimitDuration('pacific_midnight')}
+                        className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-sky-300 border border-sky-800/80 text-[10px] font-mono font-semibold"
+                      >
+                        Pasifik 00:00
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">
+                        Pilih Tanggal & Waktu Reset Manual:
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={manualResetDate}
+                        onChange={(e) => setManualResetDate(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Input Catatan Log Manual (Opsional) */}
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">
+                    Catatan Perubahan Status (Opsional):
+                  </label>
+                  <input
+                    type="text"
+                    value={manualStatusNote}
+                    onChange={(e) => setManualStatusNote(e.target.value)}
+                    placeholder="mis. Penyesuaian manual oleh admin giliran..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200"
+                  />
+                </div>
+
+                {/* Tombol Aksi Simpan */}
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualStatusModal(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyManualStatus()}
+                    disabled={isApplyingManualStatus}
+                    className={`px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-[0.98] ${
+                      manualTargetStatus === 'login'
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30'
+                        : manualTargetStatus === 'limit'
+                        ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/30'
+                        : 'bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-600/30'
+                    }`}
+                  >
+                    {isApplyingManualStatus ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    <span>Terapkan Status {manualTargetStatus.toUpperCase()}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Content: TAB 2 (Matriks Cepat Seluruh ID & Servis) */}
+            {manualStatusViewTab === 'matrix' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-slate-400">
+                    Tinjau dan ubah status 1-ketuk secara langsung untuk tiap ID pengguna:
+                  </p>
+                  <select
+                    value={matrixFilterServiceId}
+                    onChange={(e) => setMatrixFilterServiceId(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 font-mono"
+                  >
+                    <option value="ALL">Semua Layanan ({services.length})</option>
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="max-h-[380px] overflow-y-auto space-y-2.5 pr-1">
+                  {persons.map((p) => {
+                    const personAccesses = accessList.filter((a) => a.personId === p.id);
+                    const filteredAccesses = matrixFilterServiceId === 'ALL'
+                      ? personAccesses
+                      : personAccesses.filter((a) => a.serviceId === matrixFilterServiceId);
+
+                    if (filteredAccesses.length === 0) return null;
+
+                    return (
+                      <div key={p.id} className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-xs text-slate-200">{p.ownerName}</span>
+                            <span className="text-[10px] font-mono text-slate-400">{p.googleEmail}</span>
+                          </div>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-slate-900 text-slate-500 border border-slate-800">
+                            ID: {p.id}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {filteredAccesses.map((acc) => {
+                            const s = services.find((ser) => ser.id === acc.serviceId);
+                            const isLimit = acc.status === 'limited';
+                            const isLogin = !!acc.activeSessionStart;
+
+                            return (
+                              <div
+                                key={acc.id}
+                                className="p-2 rounded-lg bg-slate-900 border border-slate-800/80 flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <span className="font-semibold text-xs text-white truncate block">
+                                    {s?.name || acc.serviceId}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded font-bold uppercase ${
+                                      isLogin 
+                                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                        : isLimit
+                                        ? 'bg-rose-950 text-rose-400 border border-rose-800'
+                                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                    }`}>
+                                      {isLogin ? 'LOGIN' : isLimit ? 'LIMIT' : 'LOGOUT'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {/* Quick Login */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApplyManualStatus(acc.id, 'login')}
+                                    title="Set Status ke LOGIN"
+                                    className={`px-1.5 py-1 rounded text-[10px] font-mono font-bold transition active:scale-[0.98] ${
+                                      isLogin
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-slate-800 hover:bg-emerald-950 text-slate-300 hover:text-emerald-300'
+                                    }`}
+                                  >
+                                    Login
+                                  </button>
+
+                                  {/* Quick Logout */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApplyManualStatus(acc.id, 'logout')}
+                                    title="Set Status ke LOGOUT (Siap Pakai)"
+                                    className={`px-1.5 py-1 rounded text-[10px] font-mono font-bold transition active:scale-[0.98] ${
+                                      !isLogin && !isLimit
+                                        ? 'bg-sky-600 text-white'
+                                        : 'bg-slate-800 hover:bg-sky-950 text-slate-300 hover:text-sky-300'
+                                    }`}
+                                  >
+                                    Logout
+                                  </button>
+
+                                  {/* Quick Limit */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setManualTargetAccessId(acc.id);
+                                      setManualTargetStatus('limit');
+                                      setManualStatusViewTab('form');
+                                      applyPresetManualLimitDuration(3);
+                                    }}
+                                    title="Set Status ke LIMIT (Buka form waktu)"
+                                    className={`px-1.5 py-1 rounded text-[10px] font-mono font-bold transition active:scale-[0.98] ${
+                                      isLimit
+                                        ? 'bg-rose-600 text-white'
+                                        : 'bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300'
+                                    }`}
+                                  >
+                                    Limit
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualStatusModal(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal Konfirmasi Pengguna untuk Operasi Restore Google Sheets */}
       {confirmModalConfig && (

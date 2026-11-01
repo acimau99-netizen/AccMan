@@ -14,6 +14,7 @@ import {
   hitLimitSession,
   editLimitResetAt,
   processAutoReadyCheck,
+  manualSetAccessStatus,
 } from '../src/session/session-manager';
 
 describe('session.test', () => {
@@ -169,5 +170,64 @@ describe('session.test', () => {
     const logsAfterSecond = await getLogsByAccessId(access.id, db);
     const resetLogsSecond = logsAfterSecond.filter((l) => l.type === 'reset_ready');
     expect(resetLogsSecond).toHaveLength(1); // tetap tepat 1 kali
+  });
+
+  it('manual_status_override_login_logout_limit', async () => {
+    const db = await getDatabase(getTestDbName());
+
+    const person = await createAccount(
+      { ownerName: 'Budi Santoso', googleEmail: 'budi@gmail.com' },
+      db
+    );
+    const service = await createServiceWithValidation(
+      { name: 'Claude Pro', urlTemplate: 'https://claude.ai', usesAuthuser: false, resetRule: { mode: 'duration', hours: 5 } },
+      db
+    );
+    const access = await createAccountAccess({ personId: person.id, serviceId: service.id }, db);
+
+    const baseTime = new Date('2026-11-01T10:00:00.000Z');
+
+    // 1. Set manual LOGIN
+    const loginRes = await manualSetAccessStatus(access.id, 'login', { now: baseTime, dbInstance: db });
+    expect(loginRes.access.status).toBe('ready');
+    expect(loginRes.access.activeSessionStart).toBe('2026-11-01T10:00:00.000Z');
+    expect(loginRes.newStatus).toBe('LOGIN');
+
+    // 2. Set manual LOGOUT setelah 1800 detik (30 menit)
+    const logoutTime = new Date('2026-11-01T10:30:00.000Z');
+    const logoutRes = await manualSetAccessStatus(access.id, 'logout', { now: logoutTime, dbInstance: db });
+    expect(logoutRes.access.status).toBe('ready');
+    expect(logoutRes.access.activeSessionStart).toBeUndefined();
+    expect(logoutRes.durationSec).toBe(1800);
+    expect(logoutRes.newStatus).toBe('LOGOUT/READY');
+
+    // 3. Set manual LIMIT dengan target 4 jam ke depan
+    const limitTime = new Date('2026-11-01T11:00:00.000Z');
+    const targetReset = new Date('2026-11-01T15:00:00.000Z');
+    const limitRes = await manualSetAccessStatus(access.id, 'limit', {
+      now: limitTime,
+      resetAt: targetReset,
+      note: 'Manual limit kuota habis',
+      dbInstance: db,
+    });
+    expect(limitRes.access.status).toBe('limited');
+    expect(limitRes.access.resetAt).toBe('2026-11-01T15:00:00.000Z');
+    expect(limitRes.newStatus).toBe('LIMIT');
+
+    // 4. Validasi penolakan resetAt masa lalu
+    await expect(
+      manualSetAccessStatus(access.id, 'limit', {
+        now: limitTime,
+        resetAt: new Date('2026-11-01T10:00:00.000Z'), // masa lalu
+        dbInstance: db,
+      })
+    ).rejects.toThrow('Waktu resetAt harus berada di masa mendatang');
+
+    // 5. Verifikasi seluruh log tercatat dengan benar
+    const allLogs = await getLogsByAccessId(access.id, db);
+    expect(allLogs).toHaveLength(3);
+    expect(allLogs.some((l) => l.type === 'opened')).toBe(true);
+    expect(allLogs.some((l) => l.type === 'stop')).toBe(true);
+    expect(allLogs.some((l) => l.type === 'limit_hit')).toBe(true);
   });
 });

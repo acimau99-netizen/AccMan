@@ -17,9 +17,9 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 
 ## 1. STATUS AKTIF
 
-* **Timestamp Audit:** 2026-10-30T02:31:43-07:00
+* **Timestamp Audit:** 2026-11-01T09:19:25-08:00
 * **Cabang Git:** `main`
-* **Task Terakhir DONE:** `TASK-REV-11`
+* **Task Terakhir DONE:** `TASK-REV-12`
 * **Task Aktif:** -
 * **Status Task Aktif:** -
 * **Task Berikutnya:** -
@@ -53,6 +53,7 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 | `TASK-REV-09` | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | TASK-REV-08 | DONE | 74/74 vitest pass (17 files), tsc 0 error, build exit 0; selektor mode cloud, badge aktif Apps Script, tombol cadangkan & pulihkan via skrip, probe & simpan pengaturan verified | ya |
 | `TASK-REV-10` | Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) ke Tabel IndexedDB | TASK-REV-09 | DONE | 75/75 vitest pass (17 files), tsc 0 error, build exit 0; 86 entitas terpulihkan ke IndexedDB, auto-seed/restore aktif, tombol 1-ketuk cadangan terlampir terverifikasi | ya |
 | `TASK-REV-11` | Modernisasi PWA Informatif-Dekoratif, Aksesibilitas Ramah Pengguna & Fungsionalitas Penuh Tombol Antarmuka | TASK-REV-10 | DONE | 75/75 vitest pass (17 files), tsc 0 error, compile_applet exit 0; Service Quota Matrix, Live Header Telemetry, Zero Dead Buttons, Duration Presets, CSV Export | ya |
+| `TASK-REV-12` | Panel Edit Manual Status Akses (Login, Logout, Limit) per Servis & ID Akun serta Refaktor Aksi Stop Menjadi Logout | TASK-REV-11 | DONE | 76/76 vitest pass (17 files), tsc 0 error, compile_applet exit 0; manualSetAccessStatus, Panel Edit Status Manual (Login, Logout, Limit), Stop refactored to Logout, Matriks Seluruh ID | ya |
 
 Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: ya` tidak valid.
 
@@ -68,7 +69,7 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 * **Sudah Dilakukan:** -
 * **Langkah Berikutnya (persis):** -
 * **Perintah Verifikasi:** -
-* **Diperbarui:** 2026-10-30T02:31:43-07:00
+* **Diperbarui:** 2026-11-01T09:19:25-08:00
 
 ---
 
@@ -97,24 +98,25 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 | `TASK-REV-09` | Level M | Aktivasi Metode Alternatif Google Apps Script Web App & Tombol Sinkronisasi Mandiri | DONE (disetujui pengguna) |
 | `TASK-REV-10` | Level M | Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) ke Tabel IndexedDB | DONE (disetujui pengguna) |
 | `TASK-REV-11` | Level M | Modernisasi PWA Informatif-Dekoratif, Aksesibilitas Ramah Pengguna & Fungsionalitas Penuh Tombol Antarmuka | DONE (disetujui pengguna) |
+| `TASK-REV-12` | Level M | Panel Edit Manual Status Akses (Login, Logout, Limit) per Servis & ID Akun serta Refaktor Aksi Stop Menjadi Logout | DONE (disetujui pengguna) |
 
 ---
 
 ## 6. CATATAN SERAH TERIMA (ditimpa; maks. ~10 baris)
 
-* [2026-10-30T02:31:43-07:00] TASK-REV-11 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-11"). WAL dikosongkan.
-* [2026-10-30T02:31:43-07:00] PWA kini 100% fungsional pada seluruh kontrol: Buka Sesi, Salin Tautan Akses (`?authuser=...`), Buka Web Langsung, Stop Sesi, Tandai Limit & Koreksi Reset.
-* [2026-10-30T02:31:43-07:00] Header Telemetry Bar aktif: stopwatch sesi berjalan, counter ketersediaan akun [7/9 READY] dengan switch filter cepat, dan penunjuk metode sinkronisasi.
-* [2026-10-30T02:31:43-07:00] Service Quota Matrix aktif di Dashboard untuk 6 layanan AI dengan visual progress bar & filter 1-ketuk.
-* [2026-10-30T02:31:43-07:00] Preset durasi limit (+1h, +2h, +3h, +4h, +8h, Pasifik 00:00) mempermudah manajemen kuota tanpa entri datetime manual.
-* [2026-10-30T02:31:43-07:00] Riwayat interaktif: pencarian kata kunci, filter kategori tipe event, template catatan cepat tim, dan ekspor CSV mandiri.
-* [2026-10-30T02:31:43-07:00] Zero-pill discipline diterapkan penuh dengan tipografi monospace tabular dan feedback sentuh taktil mikro.
-* [2026-10-30T02:31:43-07:00] Seluruh 75 unit test lulus di 17 berkas test, tsc 0 error, build & compile_applet exit 0.
+* [2026-11-01T09:19:25-08:00] TASK-REV-12 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-12"). WAL dikosongkan.
+* [2026-11-01T09:19:25-08:00] SELURUH 24 TASK (12 Backlog Utama TASK-001 s/d TASK-012 + 12 Task Revisi TASK-REV-01 s/d TASK-REV-12) SELESAI 100% (DONE).
+* [2026-11-01T09:19:25-08:00] Tidak ada task yang berstatus PENDING, READY, IN_PROGRESS, atau BLOCKED.
+* [2026-11-01T09:19:25-08:00] Panel Edit Manual Status Akses (Login, Logout, Limit) aktif penuh pada tombol Header, Dashboard, Sesi, dan setiap baris akun.
+* [2026-11-01T09:19:25-08:00] Seluruh tombol dan label Stop telah berhasil digantikan menjadi Logout / Logout Sesi (LogOut) di seluruh aplikasi.
+* [2026-11-01T09:19:25-08:00] Seluruh 76 unit test di 17 berkas test lulus 100%, tsc 0 error, build & compile_applet exit 0. PWA production-ready.
 
 ---
 
 ## 7. LOG AUDIT (terbaru di atas; arsipkan entri lama ke `docs/archive/`)
 
+* [2026-11-01T09:19:25-08:00] TASK-REV-12 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-12"). WAL dikosongkan. Seluruh 24 task (12 Backlog Utama + 12 Task Revisi) telah berstatus DONE 100%. Tidak ada task tertunda.
+* [2026-11-01T08:53:56-08:00] TASK-REV-12 implementasi & verifikasi selesai (76/76 vitest pass di 17 files, tsc 0 error, build & compile_applet exit 0). manualSetAccessStatus terpasang, modal Panel Edit Manual Status (Login • Logout • Limit) aktif di Header, Dashboard, dan baris akun, tombol Stop telah direfaktor menjadi Logout, dan tab Matriks Seluruh ID aktif. Menunggu persetujuan DONE pengguna.
 * [2026-10-30T02:31:43-07:00] TASK-REV-11 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-11"). WAL dikosongkan. Seluruh 100% kontrol tombol berfungsi nyata tanpa elemen kosmetik mati, Service Quota Matrix aktif, telemetri header real-time terpasang, preset durasi limit instan berfungsi, ekspor CSV riwayat mandiri selesai, dan zero-pill typography diterapkan penuh. 75/75 tests pass di 17 files, tsc 0 error, compile_applet sukses.
 * [2026-10-29 jam: ?] TASK-REV-11 implementasi & verifikasi selesai (75/75 vitest pass di 17 files, tsc 0 error, build & compile_applet exit 0). Seluruh AC-1 s/d AC-5 terpenuhi: Live Header Telemetry, Service Quota Matrix, 100% tombol interaktif fungsional nyata, preset durasi limit, ekspor CSV riwayat, dan zero-pill typography. Menunggu persetujuan DONE pengguna.
 * [2026-10-29 jam: ?] TASK-REV-10 implementasi & verifikasi selesai (75/75 unit tests lulus di 17 files, tsc 0 error, build exit 0). Seluruh 86 entitas cadangan terlampir telah dipulihkan ke tabel IndexedDB aplikasi. Menunggu persetujuan DONE pengguna.

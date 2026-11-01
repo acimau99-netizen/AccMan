@@ -7,6 +7,14 @@ Mengikuti Keep a Changelog dan SemVer. Perubahan Level S (`[MINOR]`) dan task re
 ## [Unreleased]
 
 ### Added
+- [TASK-REV-12] Panel Edit Manual Status Akses (Login, Logout, Limit) per Servis & ID Akun serta Refaktor Aksi Stop Menjadi Logout (`src/session/session-manager.ts`, `src/App.tsx`, `tests/session.test.ts`, `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`):
+  - Fungsi Manajer Status Akses Manual (`manualSetAccessStatus`): Mendukung transisi manual status ke `login` (sesi aktif berjalan, status ready, bersihkan limit), `logout` (akhiri sesi aktif, hitung durasi pemakaian, status ready standby, bersihkan limit), dan `limit` (setel status limited dengan resetAt valid dan preset instan).
+  - Refaktor Terminologi Stop -> Logout Sesuai Permintaan: Mengganti label dan ikon tombol aksi "Stop Sesi" / "Stop" menjadi "Logout Sesi" / "Logout" (`LogOut`) pada seluruh kartu baris akun di Dashboard, bilah ticker header aktif, dan tab Sesi Pemakaian.
+  - Panel Modal Edit Manual Status Lengkap: Menyediakan modal interaktif dengan 2 mode tampilan:
+    1. Form Edit Status Spesifik: Memilih layanan & ID akun, menyajikan card status terkini (ID akses, ID akun, nama, email, servis, status saat ini), 3 kartu pilihan kondisi status (LOGIN, LOGOUT, LIMIT), kalkulator preset durasi (+1h, +2h, +3h, +4h, +8h, Pasifik 00:00), input tanggal/jam kustom, dan catatan log opsional.
+    2. Matriks Cepat Seluruh ID & Servis: Tampilan ringkas seluruh ID pengguna dan statusnya di tiap servis dengan tombol 1-ketuk langsung (Login, Logout, Limit) untuk pembaruan instan massal.
+  - Aksesibilitas Mudah & 1-Ketuk: Tombol pembuka panel disematkan di bilah Header, di atas Matriks Kuota Layanan Dashboard, pada tab Sesi Pemakaian, dan tombol langsung di setiap baris akun.
+  - Pengujian Mutu: Menambahkan test case `manual_status_override_login_logout_limit` di `tests/session.test.ts`. Total 76/76 unit tests lulus di seluruh 17 berkas pengujian, tsc --noEmit 0 error, dan build Vite exit 0.
 - [TASK-REV-11] PWA User-Friendly & Informatif-Dekoratif dengan 100% Tombol Fungsional (`src/App.tsx`, `TASKS.md`, `CHANGELOG.md`, `SESSION_STATE.md`):
   - Telemetri Header Real-Time & Navigasi Cepat (AC-1): Ticker stopwatch durasi sesi aktif berjalan (`⏱ Service: HH:MM:SS`), counter ketersediaan akun global (`[7/9 READY]`) dengan toggle 1-ketuk filter dashboard, dan indikator status sinkronisasi aktif (`Apps Script` / `Sheets API`) dengan tombol pintas ke tab Cadangan. Desain menerapkan zero-pill discipline (`rounded-md font-mono text-[10px]`).
   - Matriks Kuota Layanan Visual di Dashboard (AC-2): Ringkasan status kuota interaktif untuk 6 layanan AI dengan rasio akun siap pakai (`3/4 READY`), lencana aturan reset jam/siklus, bilah progres persentase visual (`% Siap`), dan tombol filter 1-ketuk untuk memfokuskan kartu layanan tertentu.

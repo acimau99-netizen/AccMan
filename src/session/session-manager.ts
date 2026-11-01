@@ -345,3 +345,134 @@ export async function processAutoReadyCheck(
     transitionedAccesses,
   };
 }
+
+export type ManualStatusTarget = 'login' | 'logout' | 'limit';
+
+export interface ManualSetStatusOptions {
+  resetAt?: Date | string;
+  note?: string;
+  now?: Date;
+  dbInstance?: IDBPDatabase;
+}
+
+export interface ManualSetStatusResult {
+  access: Access;
+  log: UsageLog;
+  previousStatus: string;
+  newStatus: string;
+  durationSec?: number;
+}
+
+/**
+ * 6. Edit Manual Status Akses (Login, Logout, Limit) per Servis & ID Akun (TASK-REV-12):
+ * Memungkinkan administrator/pengguna secara manual menetapkan status akun ke:
+ * - 'login': Sesi aktif (activeSessionStart = now, status = ready)
+ * - 'logout': Sesi diakhiri/standby (activeSessionStart = null, status = ready)
+ * - 'limit': Sesi terkena limit dengan penentuan resetAt
+ */
+export async function manualSetAccessStatus(
+  accessId: string,
+  targetState: ManualStatusTarget,
+  options?: ManualSetStatusOptions
+): Promise<ManualSetStatusResult> {
+  const db = options?.dbInstance;
+  const now = options?.now || new Date();
+
+  const access = await getAccessById(accessId, db);
+  if (!access) {
+    throw new Error(`Akses dengan ID "${accessId}" tidak ditemukan.`);
+  }
+
+  const person = await getPersonById(access.personId, db);
+  const service = await getServiceById(access.serviceId, db);
+  const ownerLabel = person ? `${person.ownerName} (${person.googleEmail})` : access.personId;
+  const serviceLabel = service ? service.name : access.serviceId;
+
+  const previousStatus = access.status === 'limited' 
+    ? 'LIMIT' 
+    : (access.activeSessionStart ? 'LOGIN' : 'LOGOUT/READY');
+
+  let durationSec: number | undefined;
+  let logType: UsageLog['type'] = 'stop';
+  let logDetail = '';
+
+  if (targetState === 'login') {
+    access.status = 'ready';
+    access.activeSessionStart = now.toISOString();
+    access.limitedAt = undefined;
+    access.resetAt = undefined;
+
+    logType = 'opened';
+    logDetail = options?.note || `[MANUAL STATUS] Diubah ke status LOGIN (Sesi Aktif) untuk ${ownerLabel} di ${serviceLabel}.`;
+  } else if (targetState === 'logout') {
+    if (access.activeSessionStart) {
+      const startTime = new Date(access.activeSessionStart).getTime();
+      if (!isNaN(startTime) && now.getTime() >= startTime) {
+        durationSec = Math.floor((now.getTime() - startTime) / 1000);
+      }
+    }
+
+    access.status = 'ready';
+    access.activeSessionStart = undefined;
+    access.limitedAt = undefined;
+    access.resetAt = undefined;
+
+    logType = 'stop';
+    const durLabel = durationSec !== undefined ? ` Durasi sesi: ${durationSec} detik.` : '';
+    logDetail = options?.note || `[MANUAL STATUS] Diubah ke status LOGOUT (Sesi Selesai/Siap Pakai) untuk ${ownerLabel} di ${serviceLabel}.${durLabel}`;
+  } else if (targetState === 'limit') {
+    let targetResetAt: Date;
+
+    if (options?.resetAt) {
+      targetResetAt = options.resetAt instanceof Date ? options.resetAt : new Date(options.resetAt);
+      if (isNaN(targetResetAt.getTime())) {
+        throw new Error('Nilai resetAt untuk status LIMIT tidak valid.');
+      }
+      if (targetResetAt.getTime() <= now.getTime()) {
+        throw new Error('Waktu resetAt harus berada di masa mendatang (lebih besar dari waktu saat ini).');
+      }
+    } else if (service) {
+      targetResetAt = computeResetAt(service.resetRule, now);
+    } else {
+      // Default fallback: 3 jam mendatang
+      targetResetAt = new Date(now.getTime() + 3 * 3600 * 1000);
+    }
+
+    access.status = 'limited';
+    access.limitedAt = now.toISOString();
+    access.resetAt = targetResetAt.toISOString();
+    access.activeSessionStart = undefined;
+
+    logType = 'limit_hit';
+    logDetail = options?.note || `[MANUAL STATUS] Diubah ke status LIMIT untuk ${ownerLabel} di ${serviceLabel} hingga ${targetResetAt.toISOString()}.`;
+  } else {
+    throw new Error(`Target status tidak valid: "${targetState}". Pilihan: login | logout | limit.`);
+  }
+
+  await updateAccess(access, db);
+
+  const log = await addLog(
+    {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      accessId: access.id,
+      type: logType,
+      at: now.toISOString(),
+      durationSec,
+      detail: logDetail,
+    },
+    db
+  );
+
+  const newStatus = access.status === 'limited' 
+    ? 'LIMIT' 
+    : (access.activeSessionStart ? 'LOGIN' : 'LOGOUT/READY');
+
+  return {
+    access,
+    log,
+    previousStatus,
+    newStatus,
+    durationSec,
+  };
+}
+
