@@ -230,4 +230,31 @@ describe('session.test', () => {
     expect(allLogs.some((l) => l.type === 'stop')).toBe(true);
     expect(allLogs.some((l) => l.type === 'limit_hit')).toBe(true);
   });
+
+  it('save_access_session_note_updates_person_and_logs - Memberi dan menyimpan catatan sesi langsung (TASK-REV-13)', async () => {
+    const { saveAccessSessionNote } = await import('../src/session/session-manager');
+    const { getPersonById } = await import('../src/storage/db');
+    const db = await getDatabase(getTestDbName());
+
+    const person = await createAccount({ ownerName: 'Budi Santoso', googleEmail: 'budi@example.com' }, db);
+    const service = await createServiceWithValidation(
+      { name: 'ChatGPT Plus', urlTemplate: 'https://chatgpt.com', usesAuthuser: false, resetRule: { mode: 'duration', hours: 3 } },
+      db
+    );
+    const access = await createAccountAccess({ personId: person.id, serviceId: service.id }, db);
+
+    const res = await saveAccessSessionNote(access.id, 'Dipakai untuk riset pasar Q4', {
+      authorName: 'Rian',
+      now: new Date('2026-11-01T12:00:00.000Z'),
+      dbInstance: db,
+    });
+
+    expect(res.person?.note).toBe('Dipakai untuk riset pasar Q4');
+    expect(res.log.detail).toContain('ChatGPT Plus');
+    expect(res.log.detail).toContain('Rian');
+    expect(res.log.detail).toContain('Dipakai untuk riset pasar Q4');
+
+    const updatedPerson = await getPersonById(person.id, db);
+    expect(updatedPerson?.note).toBe('Dipakai untuk riset pasar Q4');
+  });
 });

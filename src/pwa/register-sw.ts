@@ -57,6 +57,22 @@ export function registerServiceWorker(): void {
     console.log('AI Account Manager PWA berhasil diinstal ke layar utama.');
   });
 
+  // Di lingkungan preview / dev / iframe, bersihkan service worker lama untuk mencegah blank preview
+  const isDevOrIframe = 
+    Boolean(import.meta.env?.DEV) || 
+    (typeof window !== 'undefined' && window.self !== window.top);
+
+  if (isDevOrIframe) {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const reg of registrations) {
+          reg.unregister();
+        }
+      }).catch(() => {});
+    }
+    return;
+  }
+
   if ('serviceWorker' in navigator) {
     const register = () => {
       const swUrl = './sw.js';

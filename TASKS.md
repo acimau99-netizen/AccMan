@@ -448,6 +448,26 @@ MODE LITE: `Docs Impact` hanya merujuk `BLUEPRINT` / `TASKS`; `Test Case` meruju
 * **Test Case:** `tests/session.test.ts::manual_status_override_login_logout_limit`
 * **Metode Verifikasi:** Vitest test runner + `tsc --noEmit` + `compile_applet` exit 0; tempel bukti.
 
+---
+
+### TASK-REV-13: Penyederhanaan PWA: Dashboard Catatan Pemakaian AI Bergaya Excel, Pemantauan Sesi Login Aktif, Hitung Mundur Reset Limit & Kemudahan Catatan Sesi
+* **Fase:** FASE REVISI (Simplicity & Excel-like AI Usage Log)
+* **Deskripsi:** Menyederhanakan antarmuka PWA agar fokus pada catatan pemakaian AI yang ringkas dan mudah dibaca seperti lembar kerja Excel/spreadsheet. Menyediakan dashboard dengan pemantau akun yang sedang login aktif dan ringkasan status, menghilangkan penghitungan durasi pemakaian (stopwatch) yang tidak diperlukan dan hanya menghitung mundur waktu reset limit, mempertahankan seluruh fungsionalitas sesi pemakaian (buka sesi, logout, limit), serta mempermudah pemberian dan peninjauan catatan di setiap sesi secara langsung.
+* **Dependensi:** `TASK-REV-12`
+* **File:** `src/App.tsx`, `src/session/session-manager.ts`, `tests/session.test.ts`, `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Docs Terkait (Tier 1):** `BLUEPRINT.md`, `TASKS.md`, `SESSION_STATE.md`
+* **Docs Impact:** `TASKS.md`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Acceptance Criteria:**
+  1. Tampilan Catatan Pemakaian AI Bergaya Excel: Tata letak utama menyajikan tabel spreadsheet responsif dengan kolom Nomor/ID, Nama Akun, Email Google, Layanan AI, Status Saat Ini, Sesi Login, Waktu Reset Limit, Catatan Sesi Terkini, dan Tombol Aksi Cepat.
+  2. Dashboard Ringkasan & Akun Sedang Login: Menampilkan kartu pemantau akun dan layanan apa saja yang sedang dalam status login saat ini dengan tombol 1-ketuk langsung untuk Logout atau Tandai Limit, serta widget jumlah akun READY vs LIMITED vs SEDANG LOGIN.
+  3. Eliminasi Stopwatch Durasi Pemakaian: Menghilangkan perhitungan durasi stopwatch detik/menit berjalan dari antarmuka; penghitungan live HANYA fokus pada hitung mundur waktu Reset Limit saat akun berstatus LIMITED.
+  4. Kemudahan Catatan Sesi: Menyediakan tombol catatan cepat di setiap baris tabel sesi untuk langsung memberi catatan baru atau meninjau riwayat catatan sesi akun tersebut secara inline/modal mini tanpa berpindah halaman.
+  5. Sesi Pemakaian Utuh & Fungsional: Mempertahankan fungsionalitas inti sesi (membuka URL sesi AI, logout untuk mengembalikan ke pool ready, dan tandai limit dengan reset otomatis/manual).
+  6. Pengujian & Verifikasi: Seluruh test suite (76+ unit tests) lulus 100%, `tsc --noEmit` 0 error, dan `compile_applet` sukses.
+* **Test Case:** `tests/session.test.ts`, `tests/dashboard.test.ts`
+* **Metode Verifikasi:** Vitest test runner + `tsc --noEmit` + `compile_applet` exit 0; tempel bukti.
+
+
 
 
 

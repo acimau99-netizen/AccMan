@@ -10,6 +10,7 @@ import {
   updateAccess,
   getAllAccess,
   getPersonById,
+  updatePerson,
   getServiceById,
   addLog,
 } from '../storage/db';
@@ -475,4 +476,52 @@ export async function manualSetAccessStatus(
     durationSec,
   };
 }
+
+/**
+ * Menyimpan catatan langsung pada sesi / akun akses tertentu (TASK-REV-13)
+ * Memperbarui catatan di tabel Person dan menambahkan log catatan sesi.
+ */
+export async function saveAccessSessionNote(
+  accessId: string,
+  noteText: string,
+  options?: {
+    authorName?: string;
+    now?: Date;
+    dbInstance?: IDBPDatabase;
+  }
+): Promise<{ access: Access; person?: Person; log: UsageLog }> {
+  const db = options?.dbInstance || (await getAccessById(accessId).then(() => undefined));
+  // Jika dbInstance tidak disertakan, getDatabase dari db.ts
+  const { getDatabase } = await import('../storage/db');
+  const actualDb = options?.dbInstance || (await getDatabase());
+  const now = options?.now || new Date();
+
+  const access = await getAccessById(accessId, actualDb);
+  if (!access) throw new Error(`Access ID "${accessId}" tidak ditemukan.`);
+
+  const person = await getPersonById(access.personId, actualDb);
+  if (person) {
+    person.note = noteText;
+    person.updatedAt = now.toISOString();
+    await updatePerson(person, actualDb);
+  }
+
+  const service = await getServiceById(access.serviceId, actualDb);
+  const serviceName = service ? service.name : 'Layanan';
+  const author = options?.authorName ? ` (${options.authorName})` : '';
+
+  const log = await addLog(
+    {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      accessId: access.id,
+      type: 'opened',
+      at: now.toISOString(),
+      detail: `[CATATAN SESI ${serviceName}]${author}: ${noteText}`,
+    },
+    actualDb
+  );
+
+  return { access, person, log };
+}
+
 

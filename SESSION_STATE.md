@@ -20,8 +20,8 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 * **Timestamp Audit:** 2026-11-01T09:19:25-08:00
 * **Cabang Git:** `main`
 * **Task Terakhir DONE:** `TASK-REV-12`
-* **Task Aktif:** -
-* **Status Task Aktif:** -
+* **Task Aktif:** `TASK-REV-13`
+* **Status Task Aktif:** `IN_PROGRESS`
 * **Task Berikutnya:** -
 
 ---
@@ -54,6 +54,7 @@ Format dibaca skrip `scripts/zlce/zlce-check.py`; jangan ubah nama field, kolom,
 | `TASK-REV-10` | Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) ke Tabel IndexedDB | TASK-REV-09 | DONE | 75/75 vitest pass (17 files), tsc 0 error, build exit 0; 86 entitas terpulihkan ke IndexedDB, auto-seed/restore aktif, tombol 1-ketuk cadangan terlampir terverifikasi | ya |
 | `TASK-REV-11` | Modernisasi PWA Informatif-Dekoratif, Aksesibilitas Ramah Pengguna & Fungsionalitas Penuh Tombol Antarmuka | TASK-REV-10 | DONE | 75/75 vitest pass (17 files), tsc 0 error, compile_applet exit 0; Service Quota Matrix, Live Header Telemetry, Zero Dead Buttons, Duration Presets, CSV Export | ya |
 | `TASK-REV-12` | Panel Edit Manual Status Akses (Login, Logout, Limit) per Servis & ID Akun serta Refaktor Aksi Stop Menjadi Logout | TASK-REV-11 | DONE | 76/76 vitest pass (17 files), tsc 0 error, compile_applet exit 0; manualSetAccessStatus, Panel Edit Status Manual (Login, Logout, Limit), Stop refactored to Logout, Matriks Seluruh ID | ya |
+| `TASK-REV-13` | Penyederhanaan PWA: Dashboard Catatan Pemakaian AI Bergaya Excel, Sesi Login, Reset Limit & Catatan Sesi | TASK-REV-12 | IN_PROGRESS | sedang diimplementasikan | belum |
 
 Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: ya` tidak valid.
 
@@ -63,12 +64,12 @@ Bukti Verifikasi: ringkasan + lokasi bukti. `DONE` tanpa bukti dan `Disetujui: y
 
 Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH langkah selesai. Kosongkan (semua `-`) saat task `DONE`.
 
-* **Task:** -
-* **Langkah Sedang Dikerjakan:** -
-* **Berkas Direncanakan/Disentuh:** -
-* **Sudah Dilakukan:** -
-* **Langkah Berikutnya (persis):** -
-* **Perintah Verifikasi:** -
+* **Task:** `TASK-REV-13`
+* **Langkah Sedang Dikerjakan:** Merestrukturisasi Dashboard & Tabel Catatan Pemakaian AI Bergaya Excel, Kartu Sedang Login Aktif, Penghapusan Stopwatch Durasi (Fokus Reset Limit Live), dan Modal/Inline Catatan Sesi
+* **Berkas Direncanakan/Disentuh:** `src/App.tsx`, `src/session/session-manager.ts`, `tests/session.test.ts`, `SESSION_STATE.md`, `CHANGELOG.md`
+* **Sudah Dilakukan:** Pendaftaran TASK-REV-13 di TASKS.md dan SESSION_STATE.md
+* **Langkah Berikutnya (persis):** Implementasi tabel spreadsheet di `src/App.tsx`, kartu ringkasan sedang login, live reset limit timer, dan editor catatan sesi langsung
+* **Perintah Verifikasi:** `npx vitest run`, `npx tsc --noEmit`, `compile_applet`
 * **Diperbarui:** 2026-11-01T09:19:25-08:00
 
 ---
@@ -99,11 +100,13 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 | `TASK-REV-10` | Level M | Pemulihan Dataset Cadangan Terlampir (6 Layanan, 9 Akun, 23 Akses, 35 Log, 13 Catatan) ke Tabel IndexedDB | DONE (disetujui pengguna) |
 | `TASK-REV-11` | Level M | Modernisasi PWA Informatif-Dekoratif, Aksesibilitas Ramah Pengguna & Fungsionalitas Penuh Tombol Antarmuka | DONE (disetujui pengguna) |
 | `TASK-REV-12` | Level M | Panel Edit Manual Status Akses (Login, Logout, Limit) per Servis & ID Akun serta Refaktor Aksi Stop Menjadi Logout | DONE (disetujui pengguna) |
+| `TASK-REV-13` | Level M | Penyederhanaan PWA Catatan Pemakaian AI Bergaya Excel, Pemantauan Sesi Login & Catatan Cepat | IN_PROGRESS |
 
 ---
 
 ## 6. CATATAN SERAH TERIMA (ditimpa; maks. ~10 baris)
 
+* [2026-11-01T09:36:29-08:00] Pratinjau diperbaiki: dev server fresh restart, modul Vite dibypass dari SW, stale SW dibersihkan di iframe/dev, ErrorBoundary dipasang di main.tsx, dan storage dilindungi safe helper anti-crash.
 * [2026-11-01T09:19:25-08:00] TASK-REV-12 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-12"). WAL dikosongkan.
 * [2026-11-01T09:19:25-08:00] SELURUH 24 TASK (12 Backlog Utama TASK-001 s/d TASK-012 + 12 Task Revisi TASK-REV-01 s/d TASK-REV-12) SELESAI 100% (DONE).
 * [2026-11-01T09:19:25-08:00] Tidak ada task yang berstatus PENDING, READY, IN_PROGRESS, atau BLOCKED.
@@ -115,6 +118,7 @@ Catatan tulis-dahulu: isi SEBELUM memulai langkah multi-berkas, perbarui SESUDAH
 
 ## 7. LOG AUDIT (terbaru di atas; arsipkan entri lama ke `docs/archive/`)
 
+* [2026-11-01T09:36:29-08:00] [FIX-PREVIEW] Perbaikan pratinjau yang tidak tampil: (1) Restart fresh dev server port 3000, (2) Bypass modul Vite & unregister Service Worker lama di lingkungan dev/iframe untuk mencegah stale cache blank preview, (3) Tambahkan ErrorBoundary dengan UI pemulihan mandiri di main.tsx, (4) Sinkronkan meta/title index.html dengan metadata.json, (5) Lindungi pembacaan storage dengan safe storage helper anti-crash di sandbox iframe. 76/76 vitest pass, tsc 0 error, build exit 0.
 * [2026-11-01T09:19:25-08:00] TASK-REV-12 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-12"). WAL dikosongkan. Seluruh 24 task (12 Backlog Utama + 12 Task Revisi) telah berstatus DONE 100%. Tidak ada task tertunda.
 * [2026-11-01T08:53:56-08:00] TASK-REV-12 implementasi & verifikasi selesai (76/76 vitest pass di 17 files, tsc 0 error, build & compile_applet exit 0). manualSetAccessStatus terpasang, modal Panel Edit Manual Status (Login • Logout • Limit) aktif di Header, Dashboard, dan baris akun, tombol Stop telah direfaktor menjadi Logout, dan tab Matriks Seluruh ID aktif. Menunggu persetujuan DONE pengguna.
 * [2026-10-30T02:31:43-07:00] TASK-REV-11 disetujui DONE oleh pengguna ("Setuju DONE TASK-REV-11"). WAL dikosongkan. Seluruh 100% kontrol tombol berfungsi nyata tanpa elemen kosmetik mati, Service Quota Matrix aktif, telemetri header real-time terpasang, preset durasi limit instan berfungsi, ekspor CSV riwayat mandiri selesai, dan zero-pill typography diterapkan penuh. 75/75 tests pass di 17 files, tsc 0 error, compile_applet sukses.

@@ -89,6 +89,7 @@ import {
   editLimitResetAt, 
   processAutoReadyCheck,
   manualSetAccessStatus,
+  saveAccessSessionNote,
   type ManualStatusTarget,
 } from './session/session-manager';
 import { computeResetAt } from './domain/reset-rule';
@@ -134,6 +135,24 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { Copy, Code, Check, CheckCheck, Share2, FileDown, Clock4, SlidersHorizontal, ArrowUpRight } from 'lucide-react';
 import { buildServiceUrl } from './domain/url-builder';
 
+function safeGetStorage(key: string): string | null {
+  try {
+    return typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeSetStorage(key: string, value: string): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, value);
+    }
+  } catch {
+    // Ignore storage quota or security error in sandboxed iframe
+  }
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'history' | 'backup' | 'accounts' | 'services'>('dashboard');
 
@@ -143,6 +162,19 @@ export default function App() {
   const [historySearchQuery, setHistorySearchQuery] = useState<string>('');
   const [sessionServiceFilter, setSessionServiceFilter] = useState<string>('ALL');
   const [dashboardFocusedService, setDashboardFocusedService] = useState<string | null>(null);
+
+  // State Sederhana & Tabel Pemakaian AI Gaya Excel (TASK-REV-13)
+  const [dashboardViewMode, setDashboardViewMode] = useState<'excel' | 'cards'>('excel');
+  const [tableSearchQuery, setTableSearchQuery] = useState<string>('');
+  const [tableServiceFilter, setTableServiceFilter] = useState<string>('ALL');
+  const [tableStatusFilter, setTableStatusFilter] = useState<'ALL' | 'LOGIN' | 'READY' | 'LIMIT'>('ALL');
+
+  // State Modal Catatan Sesi Cepat (TASK-REV-13)
+  const [showQuickNoteModal, setShowQuickNoteModal] = useState(false);
+  const [quickNoteAccessId, setQuickNoteAccessId] = useState<string>('');
+  const [quickNoteText, setQuickNoteText] = useState<string>('');
+  const [quickNoteAuthor, setQuickNoteAuthor] = useState<string>('Tim');
+  const [isSavingQuickNote, setIsSavingQuickNote] = useState(false);
 
   // State Panel Edit Status Manual (TASK-REV-12)
   const [showManualStatusModal, setShowManualStatusModal] = useState(false);
@@ -268,12 +300,12 @@ export default function App() {
   const loadAllData = async () => {
     try {
       // Auto-restore dataset cadangan terlampir jika persons masih kosong atau belum di-seed (TASK-REV-10)
-      const hasSeeded = localStorage.getItem('ai_account_manager_seeded_backup') === '2026-10-30';
+      const hasSeeded = safeGetStorage('ai_account_manager_seeded_backup') === '2026-10-30';
       const initialPersons = await getAllPersons();
       if (!hasSeeded || initialPersons.length === 0) {
         try {
           await importLocalJsonData(JSON.stringify(ATTACHED_BACKUP_20261030));
-          localStorage.setItem('ai_account_manager_seeded_backup', '2026-10-30');
+          safeSetStorage('ai_account_manager_seeded_backup', '2026-10-30');
         } catch (seedErr) {
           console.warn('Gagal memulihkan dataset cadangan terlampir:', seedErr);
         }
@@ -301,12 +333,12 @@ export default function App() {
       }
 
       // Check auto-ready on open (BR-06)
-      const lastOpen = localStorage.getItem('zlce_last_open_time');
+      const lastOpen = safeGetStorage('zlce_last_open_time');
       const readyNotice = getReadyCountSinceLastOpen(allAccess, lastOpen, new Date());
       if (readyNotice.count > 0) {
         setAutoReadyCount(readyNotice.count);
       }
-      localStorage.setItem('zlce_last_open_time', new Date().toISOString());
+      safeSetStorage('zlce_last_open_time', new Date().toISOString());
 
       // Load handoff notes for each service
       const noteMap: Record<string, HandoffNote[]> = {};
@@ -549,6 +581,36 @@ export default function App() {
     }
   };
 
+  // Handlers Quick Session Note (TASK-REV-13)
+  const handleOpenQuickNoteModal = (accessId: string) => {
+    const acc = accessList.find((a) => a.id === accessId);
+    const pers = acc ? persons.find((p) => p.id === acc.personId) : null;
+    setQuickNoteAccessId(accessId);
+    setQuickNoteText(pers?.note || '');
+    setShowQuickNoteModal(true);
+  };
+
+  const handleSaveQuickNote = async () => {
+    if (!quickNoteAccessId) return;
+    setIsSavingQuickNote(true);
+    setSessionError(null);
+    setSessionNotice(null);
+    try {
+      await saveAccessSessionNote(quickNoteAccessId, quickNoteText, {
+        authorName: quickNoteAuthor.trim() || 'Tim',
+        now: new Date(),
+      });
+      await loadAllData();
+      setShowQuickNoteModal(false);
+      setSessionNotice('Catatan sesi berhasil disimpan ke lembar kerja!');
+      setTimeout(() => setSessionNotice(null), 3500);
+    } catch (err: unknown) {
+      if (err instanceof Error) setSessionError(err.message);
+    } finally {
+      setIsSavingQuickNote(false);
+    }
+  };
+
   const handleLimitSessionById = (accessId: string) => {
     setSelectedAccessId(accessId);
     setShowLimitModal(true);
@@ -699,6 +761,41 @@ export default function App() {
     setSessionNotice(`Riwayat (${allHistoryLogs.length} kejadian) berhasil diekspor ke file CSV!`);
   };
 
+  const handleExportUsageTableCsv = () => {
+    if (accessList.length === 0) {
+      setSessionError('Belum ada data akses akun yang dapat diekspor.');
+      return;
+    }
+    const headers = ['No', 'ID Akses', 'Pemilik Akun', 'Label', 'Email Google', 'Layanan AI', 'Status', 'Sesi Login', 'Reset Limit', 'Catatan Sesi'];
+    const rows = accessList.map((acc, idx) => {
+      const p = persons.find((person) => person.id === acc.personId);
+      const s = services.find((svc) => svc.id === acc.serviceId);
+      const isLogin = Boolean(acc.activeSessionStart);
+      const resetInfo = acc.status === 'limited' ? (acc.resetAt || '') : 'Siap Pakai';
+      return [
+        idx + 1,
+        acc.id,
+        `"${(p?.ownerName || '').replace(/"/g, '""')}"`,
+        `"${(p?.label || '').replace(/"/g, '""')}"`,
+        `"${(p?.googleEmail || '').replace(/"/g, '""')}"`,
+        `"${(s?.name || '').replace(/"/g, '""')}"`,
+        acc.status.toUpperCase(),
+        isLogin ? 'SEDANG LOGIN' : 'LOGOUT/STANDBY',
+        `"${resetInfo}"`,
+        `"${(p?.note || '').replace(/"/g, '""')}"`,
+      ];
+    });
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `catatan-pemakaian-ai-excel-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setSessionNotice(`Lembar catatan pemakaian AI (${accessList.length} akun) berhasil diekspor ke Excel CSV!`);
+  };
+
   // Handoff Note & Account Note (TASK-008)
   const handleCreateHandoff = async (serviceId: string) => {
     if (!newHandoffText.trim()) return;
@@ -805,7 +902,7 @@ export default function App() {
       action: async () => {
         try {
           const res = await importLocalJsonData(JSON.stringify(ATTACHED_BACKUP_20261030));
-          localStorage.setItem('ai_account_manager_seeded_backup', '2026-10-30');
+          safeSetStorage('ai_account_manager_seeded_backup', '2026-10-30');
           await loadAllData();
           setBackupNotice(`Dataset cadangan terlampir berhasil dipulihkan! Total ${res.importedCount} entitas dimuat ke tabel.`);
         } catch (err: unknown) {
@@ -1232,12 +1329,12 @@ export default function App() {
 
   const handleDownloadPreRestoreSnapshot = () => {
     try {
-      const snapshot = localStorage.getItem(PRE_RESTORE_STORAGE_KEY);
+      const snapshot = safeGetStorage(PRE_RESTORE_STORAGE_KEY);
       if (!snapshot) {
         setBackupError('Belum ada salinan pengaman otomatis yang tersimpan.');
         return;
       }
-      const timestamp = localStorage.getItem(`${PRE_RESTORE_STORAGE_KEY}_timestamp`) || new Date().toISOString();
+      const timestamp = safeGetStorage(`${PRE_RESTORE_STORAGE_KEY}_timestamp`) || new Date().toISOString();
       const blob = new Blob([snapshot], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1386,30 +1483,35 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {/* Live Active Session Stopwatch & Quick Logout (BR-03, TASK-REV-11, TASK-REV-12) */}
-            {activeRunningAccess && (
+            {/* Indikator Sesi Login Aktif (TASK-REV-13 - Tanpa Stopwatch Durasi) */}
+            {activeRunningAccess ? (
               <div className="inline-flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedAccessId(activeRunningAccess.id);
-                    setActiveTab('sessions');
+                    setActiveTab('dashboard');
                   }}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-sky-950 text-sky-300 border border-sky-700 animate-pulse transition hover:bg-sky-900 active:scale-[0.98]"
-                  title="Sesi berjalan - Klik untuk buka kontrol sesi"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-sky-950 text-sky-300 border border-sky-700 transition hover:bg-sky-900 active:scale-[0.98]"
+                  title="Klik untuk lihat sesi login di tabel pemakaian"
                 >
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                  <span>{activeRunningService?.name || 'Sesi'}: {formatStopwatch(activeElapsedSec)}</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>{activeRunningService?.name}: Sedang Login ({activeRunningPerson?.ownerName || 'Akun'})</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleStopSessionById(activeRunningAccess.id)}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-mono font-bold bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 transition active:scale-[0.98]"
-                  title="Logout Sesi Ini Langsung (stop diganti ini saja)"
+                  title="Logout Sesi Ini Langsung"
                 >
                   <LogOut className="w-3 h-3" />
                   <span className="hidden sm:inline">Logout</span>
                 </button>
+              </div>
+            ) : (
+              <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium bg-slate-900 text-slate-400 border border-slate-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                <span>Semua Sesi Standby / Logout</span>
               </div>
             )}
 
@@ -1644,87 +1746,519 @@ export default function App() {
         {/* TAB 1: DASHBOARD & SWITCH CEPAT (TASK-007) */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            {/* Header Hero */}
+            {/* Header Hero Sederhana & Informatif (TASK-REV-13) */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-sky-950/40 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-              <div className="relative z-10 space-y-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800 text-xs font-medium">
-                  <Zap className="w-3.5 h-3.5" />
-                  Manajemen Sesi Cepat
-                </div>
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-white">Dashboard Layanan & Rekomendasi Switch</h2>
-                  <p className="text-sm text-slate-300 mt-1 max-w-2xl">
-                    Pantau status semua akun AI secara instan. Tiap kartu layanan dilengkapi hitung mundur reset waktu nyata, Catatan Lanjutan bersama tim, serta tombol peluncuran cepat ke akun ready berikutnya.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Filter Bar (Filter Status Akun READY) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-              <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition ${
-                  dashboardStatusFilter === 'READY'
-                    ? 'bg-emerald-950 border border-emerald-700 text-emerald-400'
-                    : 'bg-slate-800 text-slate-400'
-                }`}>
-                  <Filter className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-white">Filter Cepat Status Akun</h3>
-                    {dashboardStatusFilter === 'READY' && (
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold animate-in fade-in">
-                        Hanya READY Aktif
-                      </span>
-                    )}
+              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-sky-950/80 text-sky-400 border border-sky-800 text-xs font-medium">
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    Lembar Catatan Pemakaian AI
                   </div>
-                  <p className="text-xs text-slate-400">
-                    {dashboardStatusFilter === 'READY'
-                      ? `Menampilkan ${totalReadyAccounts} akun yang siap digunakan langsung.`
-                      : `Menampilkan seluruh ${accessList.length} akun (READY & LIMITED).`}
-                  </p>
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-white">Catatan Pemakaian AI & Status Sesi</h2>
+                    <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
+                      Format sederhana seperti Excel: cek apa yang sedang login, daftar status akun (READY / LIMITED), hitung mundur reset limit, dan catatan sesi per akun.
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDashboardStatusFilter('ALL')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 active:scale-[0.98] ${
-                    dashboardStatusFilter === 'ALL'
-                      ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                  }`}
-                >
-                  <span>Semua Akun</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-slate-950 text-slate-300 font-mono">
-                    {accessList.length}
-                  </span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setDashboardViewMode(dashboardViewMode === 'excel' ? 'cards' : 'excel')}
+                    className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-sm transition flex items-center gap-2 active:scale-[0.98]"
+                    title="Ganti tampilan antara mode Tabel Spreadsheet Excel dan Kartu Layanan"
+                  >
+                    {dashboardViewMode === 'excel' ? (
+                      <>
+                        <Layers className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Tampilan Kartu</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Tampilan Tabel Excel</span>
+                      </>
+                    )}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setDashboardStatusFilter('READY')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 active:scale-[0.98] ${
-                    dashboardStatusFilter === 'READY'
-                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
-                      : 'bg-emerald-950/60 text-emerald-400 border border-emerald-900/60 hover:bg-emerald-900/80'
-                  }`}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Hanya READY</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono ${
-                    dashboardStatusFilter === 'READY' ? 'bg-emerald-800 text-white' : 'bg-emerald-900 text-emerald-300'
-                  }`}>
-                    {totalReadyAccounts}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualStatusModal()}
+                    className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 shadow-sm transition flex items-center gap-2 active:scale-[0.98]"
+                    title="Buka Panel Edit Manual Status Tiap Servis & ID (Login • Logout • Limit)"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">Panel Status Manual</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Matriks Kuota Layanan (Service Quota Matrix - TASK-REV-11) */}
-            {services.length > 0 && (
+            {/* BAGIAN 1: PEMANTAUAN AKUN SEDANG LOGIN (TASK-REV-13) */}
+            {(() => {
+              const activeLogins = accessList.filter((a) => Boolean(a.activeSessionStart));
+
+              return (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                        activeLogins.length > 0 
+                          ? 'bg-sky-950 border border-sky-800 text-sky-400' 
+                          : 'bg-emerald-950 border border-emerald-800 text-emerald-400'
+                      }`}>
+                        <Play className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-white">Akun yang Sedang Login Sekarang</h3>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border ${
+                            activeLogins.length > 0
+                              ? 'bg-sky-950 text-sky-300 border-sky-700 animate-pulse'
+                              : 'bg-slate-950 text-slate-400 border-slate-800'
+                          }`}>
+                            {activeLogins.length} Aktif
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          {activeLogins.length > 0
+                            ? 'Akun berikut sedang dalam sesi login aktif. Klik Logout setelah selesai agar akun siap digunakan kembali.'
+                            : 'Semua akun saat ini dalam kondisi logout / standby dan siap digunakan.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {activeLogins.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {activeLogins.map((acc) => {
+                        const p = persons.find((person) => person.id === acc.personId);
+                        const s = services.find((svc) => svc.id === acc.serviceId);
+                        const loginTime = acc.activeSessionStart ? new Date(acc.activeSessionStart).toLocaleTimeString('id-ID') : '-';
+
+                        return (
+                          <div
+                            key={acc.id}
+                            className="p-3.5 rounded-xl bg-slate-950 border border-sky-800/80 shadow-md flex flex-col justify-between space-y-3"
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-xs text-white truncate">{p?.ownerName}</span>
+                                <span className="px-2 py-0.5 rounded-md bg-sky-950 text-sky-300 border border-sky-800 font-mono text-[10px] font-bold shrink-0">
+                                  {s?.name}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 font-mono truncate">{p?.googleEmail}</p>
+                              <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                <span>Login sejak: {loginTime}</span>
+                              </div>
+                              {p?.note && (
+                                <p className="text-[11px] text-slate-300 bg-slate-900/80 border border-slate-800 p-2 rounded-lg italic">
+                                  "{p.note}"
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Tombol Aksi Cepat Sesi */}
+                            <div className="flex items-center gap-1.5 pt-2 border-t border-slate-800/80">
+                              <button
+                                type="button"
+                                onClick={() => handleDirectExternalOpen(acc)}
+                                className="flex-1 px-2.5 py-1.5 rounded-lg bg-sky-950 hover:bg-sky-900 text-sky-300 border border-sky-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+                                title="Buka web layanan AI di tab baru"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>Buka Web</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleStopSessionById(acc.id)}
+                                className="px-2.5 py-1.5 rounded-lg bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs font-semibold flex items-center gap-1 transition active:scale-[0.98]"
+                                title="Logout Sesi Ini (kembalikan ke status ready)"
+                              >
+                                <LogOut className="w-3.5 h-3.5" />
+                                <span>Logout</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleLimitSessionById(acc.id)}
+                                className="px-2 py-1.5 rounded-lg bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 text-xs font-semibold transition active:scale-[0.98]"
+                                title="Tandai Kena Limit"
+                              >
+                                <AlertOctagon className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenQuickNoteModal(acc.id)}
+                                className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition active:scale-[0.98]"
+                                title="Beri catatan sesi"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center gap-3 text-xs text-slate-300">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      <div>
+                        <span className="font-semibold text-white">Tidak ada sesi yang sedang login.</span>
+                        <span className="text-slate-400 ml-1.5">
+                          Semua akun dalam status logout/standby. Pilih akun di tabel bawah untuk membuka sesi AI.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* BAGIAN 2: DAFTAR STATUS AKUN (RINGKASAN METRIK) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md">
+                <span className="text-[11px] font-medium text-slate-400 block">Total Akun Terdaftar</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-2xl font-bold font-mono text-white">{accessList.length}</span>
+                  <span className="text-xs text-slate-500 font-mono">akses</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md">
+                <span className="text-[11px] font-medium text-sky-400 block">Sedang Login (Aktif)</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-2xl font-bold font-mono text-sky-400">
+                    {accessList.filter((a) => Boolean(a.activeSessionStart)).length}
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono">sesi</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md">
+                <span className="text-[11px] font-medium text-emerald-400 block">Siap Digunakan (READY)</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-2xl font-bold font-mono text-emerald-400">{totalReadyAccounts}</span>
+                  <span className="text-xs text-slate-500 font-mono">siap</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md">
+                <span className="text-[11px] font-medium text-rose-400 block">Kena Limit (LIMITED)</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-2xl font-bold font-mono text-rose-400">
+                    {accessList.filter((a) => a.status === 'limited').length}
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono">menunggu reset</span>
+                </div>
+              </div>
+            {/* BAGIAN 3: TABEL CATATAN PEMAKAIAN AI BERGAYA EXCEL (SPREADSHEET VIEW - TASK-REV-13) */}
+            {dashboardViewMode === 'excel' && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+                {/* Toolbar Tabel Spreadsheet */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400 shrink-0">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Tabel Lembar Kerja Pemakaian AI (Gaya Excel)</h3>
+                      <p className="text-[11px] text-slate-400">
+                        Klik pada sel catatan untuk mengedit langsung. Hitung mundur reset limit berjalan otomatis.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Input Pencarian */}
+                    <div className="relative min-w-[200px] flex-1 sm:flex-none">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={tableSearchQuery}
+                        onChange={(e) => setTableSearchQuery(e.target.value)}
+                        placeholder="Cari akun, email, catatan..."
+                        className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 text-xs focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    {/* Filter Layanan Dropdown */}
+                    <select
+                      value={tableServiceFilter}
+                      onChange={(e) => setTableServiceFilter(e.target.value)}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-sky-500"
+                    >
+                      <option value="ALL">Semua Layanan ({accessList.length})</option>
+                      {services.map((svc) => (
+                        <option key={svc.id} value={svc.id}>
+                          {svc.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Filter Status Selector */}
+                    <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs font-semibold">
+                      {(['ALL', 'LOGIN', 'READY', 'LIMIT'] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setTableStatusFilter(mode)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition ${
+                            tableStatusFilter === mode
+                              ? 'bg-sky-600 text-white shadow-sm'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {mode === 'ALL' ? 'Semua' : mode === 'LOGIN' ? 'Login' : mode === 'READY' ? 'Ready' : 'Limit'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Tombol Ekspor CSV */}
+                    <button
+                      type="button"
+                      onClick={handleExportUsageTableCsv}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition active:scale-[0.98]"
+                      title="Unduh seluruh catatan pemakaian dalam format CSV Excel"
+                    >
+                      <FileDown className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="hidden sm:inline">Ekspor CSV</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tabel Spreadsheet */}
+                {(() => {
+                  const filtered = accessList.filter((acc) => {
+                    const p = persons.find((person) => person.id === acc.personId);
+                    const s = services.find((svc) => svc.id === acc.serviceId);
+                    if (tableServiceFilter !== 'ALL' && acc.serviceId !== tableServiceFilter) return false;
+                    if (tableStatusFilter === 'LOGIN' && !acc.activeSessionStart) return false;
+                    if (tableStatusFilter === 'READY' && (acc.status !== 'ready' || Boolean(acc.activeSessionStart))) return false;
+                    if (tableStatusFilter === 'LIMIT' && acc.status !== 'limited') return false;
+                    if (tableSearchQuery.trim()) {
+                      const q = tableSearchQuery.toLowerCase();
+                      const matchOwner = p?.ownerName.toLowerCase().includes(q);
+                      const matchEmail = p?.googleEmail.toLowerCase().includes(q);
+                      const matchLabel = p?.label.toLowerCase().includes(q);
+                      const matchNote = p?.note?.toLowerCase().includes(q);
+                      const matchService = s?.name.toLowerCase().includes(q);
+                      if (!matchOwner && !matchEmail && !matchLabel && !matchNote && !matchService) return false;
+                    }
+                    return true;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-8 text-center bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                        <FileSpreadsheet className="w-8 h-8 text-slate-600 mx-auto" />
+                        <h4 className="text-sm font-bold text-slate-300">Tidak Ada Baris yang Sesuai Filter</h4>
+                        <p className="text-xs text-slate-500">Coba ubah kata kunci pencarian atau reset filter layanan/status.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 shadow-inner">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-900/95 text-slate-300 border-b border-slate-800 font-mono text-[11px]">
+                            <th className="py-2.5 px-3 font-semibold text-slate-400 w-12 text-center">No</th>
+                            <th className="py-2.5 px-3 font-semibold text-slate-300">Pemilik / Akun</th>
+                            <th className="py-2.5 px-3 font-semibold text-slate-300">Email Google</th>
+                            <th className="py-2.5 px-3 font-semibold text-slate-300">Layanan AI</th>
+                            <th className="py-2.5 px-3 font-semibold text-slate-300">Status</th>
+                            <th className="py-2.5 px-3 font-semibold text-slate-300">Sesi Login</th>
+                            <th className="py-2.5 px-3 font-semibold text-slate-300">Reset Limit (Hitung Mundur)</th>
+                            <th className="py-2.5 px-3 font-semibold text-slate-300 min-w-[200px]">Catatan Sesi</th>
+                            <th className="py-2.5 px-3 font-semibold text-slate-300 text-right pr-4">Aksi Sesi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/80">
+                          {filtered.map((acc, idx) => {
+                            const p = persons.find((person) => person.id === acc.personId);
+                            const s = services.find((svc) => svc.id === acc.serviceId);
+                            const isLogin = Boolean(acc.activeSessionStart);
+                            const isLimited = acc.status === 'limited';
+                            const countdown = isLimited ? getRemainingCountdown(acc.resetAt, currentTime).text : null;
+                            const isCopied = copiedKey === acc.id;
+
+                            return (
+                              <tr
+                                key={acc.id}
+                                className={`transition hover:bg-slate-900/70 ${
+                                  isLogin ? 'bg-sky-950/20' : isLimited ? 'bg-rose-950/10' : ''
+                                }`}
+                              >
+                                {/* No */}
+                                <td className="py-2.5 px-3 text-center font-mono text-slate-500 text-[11px]">
+                                  {idx + 1}
+                                </td>
+
+                                {/* Pemilik / Akun */}
+                                <td className="py-2.5 px-3">
+                                  <div className="font-semibold text-white">{p?.ownerName || '-'}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">{p?.label || 'Akun'}</div>
+                                </td>
+
+                                {/* Email Google */}
+                                <td className="py-2.5 px-3 font-mono text-slate-300">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="truncate max-w-[180px]">{p?.googleEmail || '-'}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyAccessUrl(acc)}
+                                      className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition"
+                                      title="Salin tautan dengan authuser"
+                                    >
+                                      {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                    </button>
+                                  </div>
+                                </td>
+
+                                {/* Layanan AI */}
+                                <td className="py-2.5 px-3">
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-sky-400 font-mono text-[10px] font-bold">
+                                    {s?.name || '-'}
+                                  </span>
+                                </td>
+
+                                {/* Status */}
+                                <td className="py-2.5 px-3">
+                                  <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border ${
+                                    isLimited
+                                      ? 'bg-rose-950 text-rose-300 border-rose-800'
+                                      : isLogin
+                                      ? 'bg-sky-950 text-sky-300 border-sky-800'
+                                      : 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                                  }`}>
+                                    {isLimited ? 'LIMITED' : isLogin ? 'SEDANG LOGIN' : 'READY'}
+                                  </span>
+                                </td>
+
+                                {/* Sesi Login */}
+                                <td className="py-2.5 px-3 font-mono text-[11px]">
+                                  {isLogin ? (
+                                    <div className="flex items-center gap-1.5 text-sky-300">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                      <span>Aktif Login</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-500">Logout / Standby</span>
+                                  )}
+                                </td>
+
+                                {/* Reset Limit (Hitung Mundur - HANYA saat limited) */}
+                                <td className="py-2.5 px-3 font-mono">
+                                  {isLimited ? (
+                                    <div className="flex items-center gap-1.5 text-rose-300 font-bold">
+                                      <Timer className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                      <span>{countdown || 'Menunggu'}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEditResetById(acc.id)}
+                                        className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                                        title="Koreksi Waktu Reset"
+                                      >
+                                        <Edit3 className="w-3 h-3 text-purple-400" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-emerald-400/80 text-[11px]">✓ Siap Pakai</span>
+                                  )}
+                                </td>
+
+                                {/* Catatan Sesi (Mudah Diberi & Dilihat) */}
+                                <td className="py-2.5 px-3">
+                                  <div
+                                    onClick={() => handleOpenQuickNoteModal(acc.id)}
+                                    className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-slate-700 cursor-pointer transition flex items-center justify-between gap-2 group"
+                                    title="Klik untuk mengubah catatan sesi ini"
+                                  >
+                                    <span className={`text-[11px] truncate max-w-[220px] ${
+                                      p?.note ? 'text-slate-200' : 'text-slate-500 italic'
+                                    }`}>
+                                      {p?.note || 'Belum ada catatan — klik untuk tambah'}
+                                    </span>
+                                    <Edit3 className="w-3 h-3 text-slate-500 group-hover:text-sky-400 shrink-0 transition" />
+                                  </div>
+                                </td>
+
+                                {/* Aksi Sesi */}
+                                <td className="py-2.5 px-3 text-right pr-4">
+                                  <div className="inline-flex items-center gap-1">
+                                    {/* Buka Sesi */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenSessionById(acc.id)}
+                                      className="p-1.5 rounded-lg bg-sky-950 hover:bg-sky-900 text-sky-400 border border-sky-800 transition active:scale-[0.98]"
+                                      title="Buka Sesi AI (Login & Buka Web)"
+                                    >
+                                      <Play className="w-3 h-3" />
+                                    </button>
+
+                                    {/* Logout Sesi */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStopSessionById(acc.id)}
+                                      className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-950 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-800 transition active:scale-[0.98]"
+                                      title="Logout Sesi Ini (kembalikan ke pool ready)"
+                                    >
+                                      <LogOut className="w-3 h-3" />
+                                    </button>
+
+                                    {/* Kena Limit */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleLimitSessionById(acc.id)}
+                                      className="p-1.5 rounded-lg bg-slate-900 hover:bg-amber-950 text-slate-400 hover:text-amber-300 border border-slate-800 hover:border-amber-800 transition active:scale-[0.98]"
+                                      title="Tandai Kena Limit"
+                                    >
+                                      <AlertOctagon className="w-3 h-3" />
+                                    </button>
+
+                                    {/* Edit Status Manual */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenManualStatusModal(acc.id)}
+                                      className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition active:scale-[0.98]"
+                                      title="Panel Edit Status Manual"
+                                    >
+                                      <SlidersHorizontal className="w-3 h-3" />
+                                    </button>
+
+                                    {/* Beri Catatan */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenQuickNoteModal(acc.id)}
+                                      className="p-1.5 rounded-lg bg-slate-900 hover:bg-sky-950 text-slate-400 hover:text-sky-300 border border-slate-800 hover:border-sky-800 transition active:scale-[0.98]"
+                                      title="Beri Catatan Sesi"
+                                    >
+                                      <MessageSquare className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* BAGIAN 4: TAMPILAN KARTU LAYANAN (OPSIONAL JIKA DIPILIH - TASK-REV-13) */}
+            {dashboardViewMode === 'cards' && (
+              <div className="space-y-6">
+                {/* Matriks Kuota Layanan (Service Quota Matrix - TASK-REV-11) */}
+                {services.length > 0 && (
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
                   <div className="flex items-center gap-2.5">
@@ -2058,6 +2592,8 @@ export default function App() {
             </div>
           </div>
         )}
+      </div>
+    )}
 
         {/* TAB 2: SESI PEMAKAIAN (TASK-006) */}
         {activeTab === 'sessions' && (
@@ -2216,12 +2752,12 @@ export default function App() {
                     <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
                       <div>
                         {currentAccess.activeSessionStart ? (
-                          <span className="text-sky-400 font-medium animate-pulse flex items-center gap-1.5 font-mono">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                            Sesi Berjalan: {formatStopwatch(activeElapsedSec)} (Mulai: {new Date(currentAccess.activeSessionStart).toLocaleTimeString()})
+                          <span className="text-sky-300 font-medium flex items-center gap-1.5 font-mono">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Status Sesi: Sedang Aktif Login (Sejak {new Date(currentAccess.activeSessionStart).toLocaleTimeString('id-ID')})
                           </span>
                         ) : (
-                          <span>Tidak ada sesi yang sedang berjalan pada akun ini.</span>
+                          <span>Tidak ada sesi yang sedang berjalan pada akun ini (Logout / Standby).</span>
                         )}
                       </div>
 
@@ -3575,7 +4111,7 @@ export default function App() {
                   </button>
                 </div>
 
-                {typeof window !== 'undefined' && localStorage.getItem(PRE_RESTORE_STORAGE_KEY) && (
+                {Boolean(safeGetStorage(PRE_RESTORE_STORAGE_KEY)) && (
                   <button
                     onClick={handleDownloadPreRestoreSnapshot}
                     className="py-3 px-4 rounded-xl bg-slate-950 hover:bg-slate-800 text-emerald-300 border border-emerald-900/60 font-medium text-xs flex items-center justify-center gap-2 transition"
@@ -4622,6 +5158,129 @@ export default function App() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Cepat Catatan Sesi (TASK-REV-13: Lembar Kerja Excel Catatan Pemakaian) */}
+      {showQuickNoteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            {(() => {
+              const targetAcc = accessList.find((a) => a.id === quickNoteAccessId);
+              const targetPerson = targetAcc ? persons.find((p) => p.id === targetAcc.personId) : null;
+              const targetSrv = targetAcc ? services.find((s) => s.id === targetAcc.serviceId) : null;
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-100">Beri Catatan Sesi Pemakaian</h3>
+                        <p className="text-xs text-slate-400">
+                          {targetPerson?.ownerName || 'Akun'} • {targetSrv?.name || 'Layanan AI'} ({targetPerson?.label || 'Utama'})
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickNoteModal(false)}
+                      className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                      Catatan Pemakaian / Pekerjaan
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={quickNoteText}
+                      onChange={(e) => setQuickNoteText(e.target.value)}
+                      placeholder="Contoh: Selesai generate materi presentasi, reset jam 16:00, atau sisa kuota 2 prompt..."
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 placeholder-slate-600 transition-colors resize-none"
+                    />
+                  </div>
+
+                  {/* Template Chips / Quick Tags */}
+                  <div>
+                    <span className="text-[11px] font-medium text-slate-400 block mb-1.5">Template Cepat:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'Sedang riset prompt artikel',
+                        'Dipakai untuk coding / debugging',
+                        'Bikin konten media sosial',
+                        'Mendekati limit / hati-hati',
+                        'Selesai sesi, siap digunakan tim lain',
+                      ].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            setQuickNoteText((prev) => (prev ? `${prev}. ${tag}` : tag));
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-[11px] text-slate-300 transition-colors"
+                        >
+                          + {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                      Nama Pencatat (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      value={quickNoteAuthor}
+                      onChange={(e) => setQuickNoteAuthor(e.target.value)}
+                      placeholder="Nama Anda atau Tim (default: Tim)"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 placeholder-slate-600 transition-colors"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickNoteModal(false)}
+                      disabled={isSavingQuickNote}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveQuickNote}
+                      disabled={isSavingQuickNote}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-semibold shadow-md shadow-amber-500/20 disabled:opacity-50 transition-all"
+                    >
+                      {isSavingQuickNote ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                          Menyimpan...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Simpan Catatan
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

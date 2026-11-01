@@ -74,6 +74,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Lewati permintaan internal dev server Vite, HMR, dan modul node_modules
+  if (
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.includes('vite') ||
+    url.searchParams.has('import')
+  ) {
+    return;
+  }
+
   // Network-first dengan cache fallback untuk dokumen navigasi HTML (SPA routing)
   if (event.request.mode === 'navigate') {
     event.respondWith(
